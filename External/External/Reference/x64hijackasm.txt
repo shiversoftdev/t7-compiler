@@ -1,0 +1,87 @@
+﻿// adjust the stack and emplace original rip
+sub rsp, 0x8
+mov DWORD PTR[rsp], 0xdeadbeef
+mov DWORD PTR[rsp+0x4], 0xdeadbeef
+
+// save vars
+PUSHFQ
+push rax
+push rcx
+push rdx
+push rbx
+push rsp
+push rbp
+push rsi
+push rdi
+push r8
+push r9
+push r10
+push r11
+push r12
+push r13
+push r14
+push r15
+
+// push stored xmm ptr
+mov rax, 0xdeadbeefdeadbeef
+movapd [rax], xmm0
+movapd [rax + 0x10], xmm1
+movapd [rax + 0x20], xmm2
+movapd [rax + 0x30], xmm3
+movapd [rax + 0x40], xmm4
+movapd [rax + 0x50], xmm5
+movapd [rax + 0x60], xmm6
+movapd [rax + 0x70], xmm7
+movapd [rax + 0x80], xmm8
+movapd [rax + 0x90], xmm9
+movapd [rax + 0xA0], xmm10
+movapd [rax + 0xB0], xmm11
+movapd [rax + 0xC0], xmm12
+movapd [rax + 0xD0], xmm13
+movapd [rax + 0xE0], xmm14
+movapd [rax + 0xF0], xmm15
+
+// make the call
+mov rax, 0xdeadbeefdeadbeef
+call rax
+
+// push stored xmm ptr
+mov rax, 0xdeadbeefdeadbeef
+movapd xmm0, [rax]
+movapd xmm1, [rax + 0x10]
+movapd xmm2, [rax + 0x20]
+movapd xmm3, [rax + 0x30]
+movapd xmm4, [rax + 0x40]
+movapd xmm5, [rax + 0x50]
+movapd xmm6, [rax + 0x60]
+movapd xmm7, [rax + 0x70]
+movapd xmm8, [rax + 0x80]
+movapd xmm9, [rax + 0x90]
+movapd xmm10, [rax + 0xa0]
+movapd xmm11, [rax + 0xb0]
+movapd xmm12, [rax + 0xc0]
+movapd xmm13, [rax + 0xd0]
+movapd xmm14, [rax + 0xe0]
+movapd xmm15, [rax + 0xf0]
+
+// restore vars
+pop r15
+pop r14
+pop r13
+pop r12
+pop r11
+pop r10
+pop r9
+pop r8
+pop rdi
+pop rsi
+pop rbp
+pop rsp
+pop rbx
+pop rdx
+pop rcx
+pop rax
+POPFQ
+
+// exit this hoe
+ret
