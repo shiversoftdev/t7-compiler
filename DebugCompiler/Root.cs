@@ -441,6 +441,10 @@ namespace DebugCompiler
             code = Compiler.Compile(platform, game, Modes.MP, false, source);
             if (code.Error != null && code.Error.Length > 0)
             {
+                if(code.Error.LastIndexOf("line=") < 0)
+                {
+                    return Error(code.Error);
+                }
                 int iStart = code.Error.LastIndexOf("line=") + "line=".Length;
                 int iLength = code.Error.LastIndexOf("]") - iStart;
                 int line = int.Parse(code.Error.Substring(iStart, iLength));
