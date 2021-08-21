@@ -94,6 +94,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConditionalBlocks.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="Injector.cs" />
     <Compile Include="Root.cs" />

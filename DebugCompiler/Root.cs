@@ -329,6 +329,16 @@ namespace DebugCompiler
             return -1;
         }
 
+        private class SourceTokenDef
+        {
+            public string FilePath;
+            public int LineStart;
+            public int LineEnd;
+            public int CharStart;
+            public int CharEnd;
+            public Dictionary<int, (int CStart, int CEnd)> LineMappings = new Dictionary<int, (int CStart, int CEnd)>();
+        }
+
         private int cmd_Compile(string[] args)
         {
             if (args.Length < 3)
@@ -345,21 +355,112 @@ namespace DebugCompiler
 
             string source = "";
             CompiledCode code;
-
-            foreach(string f in Directory.GetFiles(args[0], "*.gsc", SearchOption.AllDirectories))
+            List<SourceTokenDef> SourceTokens = new List<SourceTokenDef>();
+            StringBuilder sb = new StringBuilder();
+            int CurrentLineCount = 0;
+            int CurrentCharCount = 0;
+            foreach (string f in Directory.GetFiles(args[0], "*.gsc", SearchOption.AllDirectories))
             {
-                source += File.ReadAllText(f) + "\n";
+                var CurrentSource = new SourceTokenDef();
+                CurrentSource.FilePath = f.Replace(args[0], "").Substring(1).Replace("\\", "/");
+                CurrentSource.LineStart = CurrentLineCount;
+                CurrentSource.CharStart = CurrentCharCount;
+                foreach (var line in File.ReadAllLines(f))
+                {
+                    CurrentSource.LineMappings[CurrentLineCount] = (CurrentCharCount, CurrentCharCount + line.Length + 1);
+                    sb.Append(line);
+                    sb.Append("\n");
+                    CurrentLineCount += 1;
+                    CurrentCharCount += line.Length + 1; // + \n
+                }
+                CurrentSource.LineEnd = CurrentLineCount;
+                CurrentSource.CharEnd = CurrentCharCount;
+                // Console.WriteLine($"{CurrentSource.FilePath} start {CurrentSource.LineStart} end {CurrentSource.LineEnd}");
+                SourceTokens.Add(CurrentSource);
+                sb.Append("\n"); // remember that this is here because its going to fuck up irony
+            }
+
+            source = sb.ToString();
+            var ppc = new ConditionalBlocks();
+            List<string> conditionalSymbols = new List<string>();
+            conditionalSymbols.Add("BO3");
+            if (File.Exists("gsc.conf"))
+            {
+                foreach(string line in File.ReadAllLines("gsc.conf"))
+                {
+                    var split = line.Trim().Split('=');
+                    if (split.Length < 2) continue;
+                    switch(split[0].ToLower().Trim())
+                    {
+                        case "symbols":
+                            foreach(string token in split[1].Trim().Split(','))
+                            {
+                                conditionalSymbols.Add(token);
+                            }
+                            break;
+                    }
+                }
+            }
+            ppc.LoadConditionalTokens(conditionalSymbols);
+            
+            try
+            {
+                source = ppc.ParseSource(source);
+            }
+            catch(CBSyntaxException e)
+            {
+                int errorCharPos = e.ErrorPosition;
+                int numLineBreaks = 0;
+                foreach(var stok in SourceTokens)
+                {
+                    do
+                    {
+                        if(errorCharPos < stok.CharStart || errorCharPos > stok.CharEnd)
+                        {
+                            break; // havent reached the target index set yet
+                        }
+                        // now we have the source file we want
+                        errorCharPos -= numLineBreaks; // adjust for inserted linebreaks between files
+                        foreach(var line in stok.LineMappings)
+                        {
+                            var constraints = line.Value;
+                            if(errorCharPos < constraints.CStart || errorCharPos > constraints.CEnd)
+                            {
+                                continue; // havent found the index we want yet
+                            }
+                            // found the target line
+                            return Error($"{e.Message} in scripts/{stok.FilePath} at line {line.Key - stok.LineStart}, position {errorCharPos - constraints.CStart}");
+                        }
+                    }
+                    while (false);
+                    numLineBreaks++;
+                }
+                return Error(e.Message);
             }
 
             code = Compiler.Compile(platform, game, Modes.MP, false, source);
-
             if (code.Error != null && code.Error.Length > 0)
             {
+                int iStart = code.Error.LastIndexOf("line=") + "line=".Length;
+                int iLength = code.Error.LastIndexOf("]") - iStart;
+                int line = int.Parse(code.Error.Substring(iStart, iLength));
+                // Console.WriteLine(code.Error + " :: " + line);
+                foreach (var stok in SourceTokens)
+                {
+                    do
+                    {
+                        if(stok.LineStart <= line && stok.LineEnd >= line)
+                        {
+                            return Error($"Syntax error in scripts/{stok.FilePath} around line {line - stok.LineStart + 1}");
+                        }
+                    }
+                    while (false);
+                    line--; // acccount for linebreaks appended to each file
+                }
                 return Error(code.Error);
             }
 
             string cpath = "compiled.gsc";
-
             File.WriteAllBytes(cpath, code.CompiledScript);
      
             Success(cpath);
