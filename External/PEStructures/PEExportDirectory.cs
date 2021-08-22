@@ -11,14 +11,39 @@ namespace System.PEStructures
     public class PEExportDirectory : PEDataDirectory
     {
         public ImageExportDirectory ExportDirectory { get; }
-        public int lpNameAddressTable { get; }
-        public int lpExportAddressTable { get; }
+        public int LPNameAddressTable { get; }
+        public int LPExportAddressTable { get; }
         public PEExportDirectory(PEHeaders headers, Memory<byte> imageData) : base(headers, imageData, headers.PEHeader.ExportTableDirectory)
         {
             if (!IsValid) return;
             ExportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageData.Span.Slice(DirectoryOffset));
-            lpNameAddressTable = RelativeToOffset(ExportDirectory.lpNames);
-            lpExportAddressTable = RelativeToOffset(ExportDirectory.lpExports);
+            LPNameAddressTable = RelativeToOffset(ExportDirectory.lpNames);
+            LPExportAddressTable = RelativeToOffset(ExportDirectory.lpExports);
+        }
+
+        public IEnumerable<PEExport> Get()
+        {
+            if (!IsValid)
+            {
+                yield break;
+            }
+
+            // Read the export directory and name address table
+            var lpOrdinalTable = RelativeToOffset(ExportDirectory.lpNameOrdinals);
+            var nameAddressTable = MemoryMarshal.Cast<byte, int>(ImageData.Span.Slice(LPNameAddressTable, sizeof(int) * ExportDirectory.numNames)).ToArray();
+            var ordinalTable = MemoryMarshal.Cast<byte, short>(ImageData.Span.Slice(lpOrdinalTable, sizeof(short) * ExportDirectory.numNames)).ToArray();
+            for (int i = 0; i < ExportDirectory.numNames; i++)
+            {
+                var lpName = RelativeToOffset(nameAddressTable[i]);
+                var nameLength = ImageData.Span.Slice(lpName).IndexOf(byte.MinValue);
+                var currentName = Encoding.UTF8.GetString(ImageData.Span.Slice(lpName, nameLength).ToArray());
+
+                // Read the name ordinal table
+                var exportOrdinal = ExportDirectory.Base + ordinalTable[i];
+                var val = this[exportOrdinal];
+                val.Name = currentName;
+                yield return val;
+            }
         }
 
         public PEExport this[string exportName]
@@ -28,7 +53,7 @@ namespace System.PEStructures
                 if (!IsValid) return null;
 
                 // Read the export directory and name address table
-                var nameAddressTable = MemoryMarshal.Cast<byte, int>(ImageData.Span.Slice(lpNameAddressTable, sizeof(int) * ExportDirectory.numNames));
+                var nameAddressTable = MemoryMarshal.Cast<byte, int>(ImageData.Span.Slice(LPNameAddressTable, sizeof(int) * ExportDirectory.numNames));
                 var low = 0;
                 var high = ExportDirectory.numNames - 1;
 
@@ -64,19 +89,19 @@ namespace System.PEStructures
                 if (!IsValid) return null;
                 exportOrdinal -= ExportDirectory.Base;
                 if (exportOrdinal >= ExportDirectory.numExports) return null;
-                var addressTable = MemoryMarshal.Cast<byte, int>(ImageData.Span.Slice(lpExportAddressTable, sizeof(int) * ExportDirectory.numExports));
+                var addressTable = MemoryMarshal.Cast<byte, int>(ImageData.Span.Slice(LPExportAddressTable, sizeof(int) * ExportDirectory.numExports));
                 var exportAddress = addressTable[exportOrdinal];
 
                 // Check if the function is forwarded
                 var exportDirectoryStartAddress = Headers.PEHeader.ExportTableDirectory.RelativeVirtualAddress;
                 var exportDirectoryEndAddress = exportDirectoryStartAddress + Headers.PEHeader.ExportTableDirectory.Size;
-                if (exportAddress < exportDirectoryStartAddress || exportAddress > exportDirectoryEndAddress) return new PEExport(null, exportAddress);
+                if (exportAddress < exportDirectoryStartAddress || exportAddress > exportDirectoryEndAddress) return new PEExport(null, exportAddress, exportOrdinal);
 
                 // Read the forwarder string
                 var forwarderStringOffset = RelativeToOffset(exportAddress);
                 var forwarderStringLength = ImageData.Span.Slice(forwarderStringOffset).IndexOf(byte.MinValue);
                 var forwarderString = Encoding.UTF8.GetString(ImageData.Span.Slice(forwarderStringOffset, forwarderStringLength).ToArray());
-                return new PEExport(forwarderString, exportAddress);
+                return new PEExport(forwarderString, exportAddress, exportOrdinal);
             }
         }
     }
@@ -107,10 +132,13 @@ namespace System.PEStructures
     { 
         public string ForwarderString { get; }
         public int RelativeAddress { get; }
-        public PEExport(string forwarder, int relative)
+        public string Name;
+        public int Ordinal { get; }
+        public PEExport(string forwarder, int relative, int ordinal)
         {
             ForwarderString = forwarder;
             RelativeAddress = relative;
+            Ordinal = ordinal;
         }
     }
 }

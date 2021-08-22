@@ -16,7 +16,8 @@ using System.Windows.Forms.VisualStyles;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
-using T7MemUtil;
+using System.Reflection;
+using System.Net;
 
 namespace DebugCompiler
 {
@@ -30,9 +31,41 @@ namespace DebugCompiler
         private delegate int CommandHandler(string[] args);
         private Dictionary<ConsoleKey, CommandInfo> CommandTable = new Dictionary<ConsoleKey, CommandInfo>();
         private bool ClearHistory = false;
-
+        private static string UpdatesURL = "https://gsc.dev/t7c_version";
+        private static string UpdaterURL = "https://gsc.dev/t7c_updater";
         static void Main(string[] args)
         {
+            try
+            {
+                ulong local_version = ParseVersion(GetEmbeddedVersion());
+                ulong remote_version = 0;
+                Console.WriteLine($"Checking client version... (our version is {local_version:X})");
+                using (WebClient client = new WebClient())
+                {
+                    string downloadString = client.DownloadString(UpdatesURL);
+                    remote_version = ParseVersion(downloadString.ToLower().Trim());
+                }
+                if(local_version < remote_version)
+                {
+                    Console.WriteLine("Client out of date, downloading installer...");
+                    string filename = Path.Combine(Path.GetTempPath(), "t7c_installer.exe");
+                    if(File.Exists(filename)) File.Delete(filename);
+                    using(WebClient client = new WebClient())
+                    {
+                        client.DownloadFile(UpdaterURL, filename);
+                    }
+                    Console.WriteLine("Installing update... Please wait for a confirmation window to pop up before attempting to inject again...");
+                    Process.Start(filename, "--install_silent");
+                    Environment.Exit(0);
+                }
+            }
+            catch
+            {
+                // we dont care if we cant update tbf
+                Console.WriteLine($"Error updating client... ignoring update");
+            }
+
+
             Root root = new Root();
             if (args.Length > 0 && args[0] == "--build")
             {
@@ -43,8 +76,8 @@ namespace DebugCompiler
             root.AddCommand(ConsoleKey.Q, "Quit Program", root.cmd_Exit);
             root.AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", root.cmd_HashString);
             root.AddCommand(ConsoleKey.T, "Toggle Text History", root.cmd_ToggleNoClear);
-            root.AddCommand(ConsoleKey.C, "Compile Script [path] [pc] [T7]", root.cmd_Compile);
-
+            root.AddCommand(ConsoleKey.C, "Compile Script [path]", root.cmd_Compile);
+            root.AddCommand(ConsoleKey.I, "Inject Script [path]", root.cmd_Inject);
             while (true)
             {
                 try { root.Exec(root.PrintOptions()); }
@@ -52,6 +85,32 @@ namespace DebugCompiler
                 {
                     root.Error(e.ToString());
                 }
+            }
+        }
+
+        static ulong ParseVersion(string vstr)
+        {
+            ulong result = 0;
+            string[] numbers = vstr.Split('.');
+            int index = 0;
+            for(int i = 0; i < numbers.Length; i++, index++)
+            {
+                int real_index = numbers.Length - 1 - i;
+                uint num = ushort.Parse(numbers[real_index]);
+                result += num << (index * 16);
+            }
+            return result;
+        }
+
+        static string GetEmbeddedVersion()
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            var resourceName = "DebugCompiler.version";
+
+            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+            using (StreamReader reader = new StreamReader(stream))
+            {
+                return reader.ReadToEnd().Trim().ToLower();
             }
         }
 
@@ -178,6 +237,48 @@ namespace DebugCompiler
         private static void LoadHashTable(bool force = false)
         {
            
+        }
+
+        private int cmd_Inject(string[] args)
+        {
+            if(args.Length != 1)
+            {
+                return Error("Invalid arguments. Please specify a file to inject.");
+            }
+
+            if(!File.Exists(args[0]))
+            {
+                return Error("Invalid arguments. Specified file does not exist.");
+            }
+
+            byte[] buffer = null;
+            try
+            {
+                buffer = File.ReadAllBytes(args[0]);
+            }
+            catch
+            {
+                return Error("Failed to read the file specified");
+            }
+
+            PointerEx injresult = InjectScript(@"scripts/shared/duplicaterender_mgr.gsc", buffer);
+            Console.WriteLine();
+            Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
+            Console.WriteLine($"\t[{"scripts/shared/duplicaterender_mgr.gsc"}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
+
+            if (!injresult)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
+                Console.ForegroundColor = ConsoleColor.Yellow;
+
+                Console.ReadKey(true);
+                NoExcept(FreeScript);
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("\tScript parsetree has been reset\n");
+                Console.ForegroundColor = ConsoleColor.White;
+            }
+            return 0;
         }
 
         private int cmd_DumpEmptySlots(string[] args)
@@ -341,18 +442,14 @@ namespace DebugCompiler
 
         private int cmd_Compile(string[] args)
         {
-            if (args.Length < 3)
+            if (args.Length < 1)
                 return Error("Invalid arguments");
 
             if (!Directory.Exists(args[0]))
                 return Error("Path is either not a directory or does not exist");
 
-            if (!Enum.TryParse(args[1], true, out Platforms platform))
-                return Error("Invalid arguments: Platform invalid");
-
-            if (!Enum.TryParse(args[2], true, out Games game))
-                return Error("Invalid arguments: Game invalid");
-
+            Platforms platform = Platforms.PC;
+            Games game = Games.T7;
             string source = "";
             CompiledCode code;
             List<SourceTokenDef> SourceTokens = new List<SourceTokenDef>();
@@ -477,20 +574,23 @@ namespace DebugCompiler
 
             if(game == Games.T7 && platform == Platforms.PC)
             {
-                bool injresult = T7MemUtil.T7Memory.PatchGSCScript(@"scripts/shared/duplicaterender_mgr.gsc", code.CompiledScript);
+                PointerEx injresult = InjectScript(@"scripts/shared/duplicaterender_mgr.gsc", code.CompiledScript);
                 Console.WriteLine();
-                Console.ForegroundColor = injresult ? ConsoleColor.Green : ConsoleColor.Red;
-                Console.WriteLine($"\t[{"scripts/shared/duplicaterender_mgr.gsc"}]: {(injresult ? "Injected" : "Failed to Inject")}\n");
+                Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
+                Console.WriteLine($"\t[{"scripts/shared/duplicaterender_mgr.gsc"}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
 
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
-                Console.ForegroundColor = ConsoleColor.Yellow;
+                if(!injresult)
+                {
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
+                    Console.ForegroundColor = ConsoleColor.Yellow;
 
-                Console.ReadKey(true);
-                T7Memory.FreeAll();
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("\tScript parsetree has been reset\n");
-                Console.ForegroundColor = ConsoleColor.White;
+                    Console.ReadKey(true);
+                    NoExcept(FreeScript);
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("\tScript parsetree has been reset\n");
+                    Console.ForegroundColor = ConsoleColor.White;
+                }
             }
             else
             {
@@ -500,10 +600,99 @@ namespace DebugCompiler
             return 0;
         }
 
+        private void NoExcept(Action a)
+        {
+            try
+            {
+                a();
+            }
+            catch { }
+        }
+
+        private PointerEx llpModifiedSPTStruct = 0;
+        private PointerEx llpOriginalBuffer;
+        private int OriginalSourceChecksum;
+        private int InjectedBuffSize;
+        private T7SPT InjectedScript;
+        private int OriginalPID = 0;
+        private int InjectScript(string replacePath, byte[] buffer)
+        {
+            NoExcept(FreeScript);
+            if(BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
+            {
+                return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III");
+            }
+            ProcessEx bo3 = "blackops3";
+            if (bo3 == null)
+            {
+                return Error("No game process found for black ops 3");
+            }
+            bo3.OpenHandle();
+            OriginalPID = bo3.BaseProcess.Id;
+            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3[0x9409AB0]}");
+            var sptGlob = bo3.GetValue<ulong>(bo3[0x9409AB0]);
+            var sptCount = bo3.GetValue<int>(bo3[0x9409AB0] + 0x14);
+            var SPTEntries = bo3.GetArray<T7SPT>(sptGlob, sptCount);
+            for(int i = 0; i < SPTEntries.Length; i++)
+            {
+                var entry = SPTEntries[i];
+                if (!entry.llpName) continue;
+                try
+                {
+                    // find target
+                    var name = bo3.GetString(entry.llpName);
+                    if(name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
+                    {
+                        // cache target info
+                        llpModifiedSPTStruct = (ulong)(i * Marshal.SizeOf(typeof(T7SPT))) + sptGlob;
+                        llpOriginalBuffer = entry.lpBuffer;
+                        OriginalSourceChecksum = bo3.GetValue<int>(llpOriginalBuffer + 0x8);
+                        
+                        // patch script into memory
+                        entry.lpBuffer = bo3.QuickAlloc(buffer.Length);
+                        BitConverter.GetBytes(OriginalSourceChecksum).CopyTo(buffer, 0x8);
+                        bo3.SetBytes(entry.lpBuffer, buffer);
+
+                        // patch spt struct
+                        bo3.SetStruct(llpModifiedSPTStruct, entry);
+
+                        // cache the struct data for uninjection
+                        InjectedScript = entry;
+                        InjectedBuffSize = buffer.Length;
+                        return 0;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.ToString());
+                    continue;
+                }
+            }
+            bo3.CloseHandle();
+            return 2;
+        }
+
+        private void FreeScript()
+        {
+            if (!llpModifiedSPTStruct) return;
+            ProcessEx bo3 = "blackops3";
+            if (bo3 == null) return;
+            if (bo3.BaseProcess.Id != OriginalPID) return;
+            bo3.OpenHandle();
+
+            // free allocated space
+            ProcessEx.VirtualFreeEx(bo3.Handle, InjectedScript.lpBuffer, (uint)InjectedBuffSize, (int)EnvironmentEx.FreeType.Release);
+
+            // Patch spt struct
+            InjectedScript.lpBuffer = llpOriginalBuffer;
+            bo3.SetStruct(llpModifiedSPTStruct, InjectedScript);
+            bo3.CloseHandle();
+        }
+
         [StructLayout(LayoutKind.Sequential, Pack = 2)]
         struct T7SPT
         {
-            public PointerEx lpName;     //00
+            public PointerEx llpName;     //00
             public int BuffSize;       //08
             public int Pad;
             public PointerEx lpBuffer;//10

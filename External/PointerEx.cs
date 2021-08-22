@@ -40,9 +40,15 @@ namespace System
         {
             return IntPtr.Size == sizeof(int) ? ((int)px < (int)pxo) : ((long)px < (long)pxo);
         }
+
         public static bool operator >(PointerEx px, PointerEx pxo)
         {
             return IntPtr.Size == sizeof(int) ? ((int)px > (int)pxo) : ((long)px > (long)pxo);
+        }
+
+        public static PointerEx operator &(PointerEx px, PointerEx pxo)
+        {
+            return IntPtr.Size == sizeof(int) ? ((int)px & (int)pxo) : ((long)px & (long)pxo);
         }
 
         public static bool operator ==(PointerEx px, PointerEx pxo)
@@ -55,19 +61,43 @@ namespace System
             return px.IntPtr != pxo.IntPtr;
         }
 
+        public override int GetHashCode()
+        {
+            return this;
+        }
+
+        public override bool Equals(object o)
+        {
+            if(o is PointerEx px)
+            {
+                return px == this;
+            }
+            return false;
+        }
+
         public static implicit operator bool(PointerEx px)
         {
-            return px.IntPtr != IntPtr.Zero;
+            return (long)px != 0;
+        }
+
+        public static implicit operator byte(PointerEx px)
+        {
+            return (byte)px.IntPtr;
+        }
+
+        public static implicit operator sbyte(PointerEx px)
+        {
+            return (sbyte)px.IntPtr;
         }
 
         public static implicit operator int(PointerEx px)
         {
-            return px.IntPtr.ToInt32();
+            return (int)px.IntPtr.ToInt64();
         }
 
         public static implicit operator uint(PointerEx px)
         {
-            return (uint)px.IntPtr.ToInt32();
+            return (uint)px.IntPtr.ToInt64();
         }
 
         public static implicit operator long(PointerEx px)
@@ -100,6 +130,16 @@ namespace System
             return new IntPtr((long)ul);
         }
 
+        public static bool operator true(PointerEx p)
+        {
+            return p;
+        }
+
+        public static bool operator false(PointerEx p)
+        {
+            return !p;
+        }
+
         public override string ToString()
         {
             return IntPtr.ToInt64().ToString($"X{IntPtr.Size * 2}");
@@ -110,5 +150,16 @@ namespace System
             return new PointerEx(IntPtr);
         }
         #endregion
+    }
+
+    /// <summary>
+    /// A dummy type to signal that no return deserialization is needed for a call.
+    /// </summary>
+    public struct VOID
+    {
+#pragma warning disable CS0169
+        [Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Placeholder value to initialize struct size")]
+        private PointerEx __value;
+#pragma warning restore CS0169
     }
 }

@@ -22,7 +22,7 @@ namespace System
 
     internal sealed class MemorySearcher
     {
-        private ProcessEx Proc;
+        private readonly ProcessEx Proc;
         public MemorySearcher(ProcessEx hostProcess)
         {
             Proc = hostProcess;
@@ -73,20 +73,20 @@ namespace System
                 {
                     bool isValid = memInfo.State == ProcessEx.MEM_COMMIT;
                     isValid &= memInfo.BaseAddress < proc_max_address;
-                    isValid &= ((memInfo.Protect & ProcessEx.PAGE_GUARD) == 0);
-                    isValid &= ((memInfo.Protect & ProcessEx.PAGE_NOACCESS) == 0);
+                    isValid &= ((memInfo.Protect & Native.PAGE_GUARD) == 0);
+                    isValid &= ((memInfo.Protect & Native.PAGE_NOACCESS) == 0);
                     isValid &= (memInfo.Type == ProcessEx.MEM_PRIVATE) || (memInfo.Type == ProcessEx.MEM_IMAGE);
                     if (isValid)
                     {
-                        bool isReadable = (memInfo.Protect & ProcessEx.PAGE_READONLY) > 0;
-                        bool isWritable = ((memInfo.Protect & ProcessEx.PAGE_READWRITE) > 0) ||
-                                          ((memInfo.Protect & ProcessEx.PAGE_WRITECOPY) > 0) ||
-                                          ((memInfo.Protect & ProcessEx.PAGE_EXECUTE_READWRITE) > 0) ||
-                                          ((memInfo.Protect & ProcessEx.PAGE_EXECUTE_WRITECOPY) > 0);
-                        bool isExecutable = ((memInfo.Protect & ProcessEx.PAGE_EXECUTE) > 0) ||
-                                            ((memInfo.Protect & ProcessEx.PAGE_EXECUTE_READ) > 0) ||
-                                            ((memInfo.Protect & ProcessEx.PAGE_EXECUTE_READWRITE) > 0) ||
-                                            ((memInfo.Protect & ProcessEx.PAGE_EXECUTE_WRITECOPY) > 0);
+                        bool isReadable = (memInfo.Protect & Native.PAGE_READONLY) > 0;
+                        bool isWritable = ((memInfo.Protect & Native.PAGE_READWRITE) > 0) ||
+                                          ((memInfo.Protect & Native.PAGE_WRITECOPY) > 0) ||
+                                          ((memInfo.Protect & Native.PAGE_EXECUTE_READWRITE) > 0) ||
+                                          ((memInfo.Protect & Native.PAGE_EXECUTE_WRITECOPY) > 0);
+                        bool isExecutable = ((memInfo.Protect & Native.PAGE_EXECUTE) > 0) ||
+                                            ((memInfo.Protect & Native.PAGE_EXECUTE_READ) > 0) ||
+                                            ((memInfo.Protect & Native.PAGE_EXECUTE_READWRITE) > 0) ||
+                                            ((memInfo.Protect & Native.PAGE_EXECUTE_WRITECOPY) > 0);
                         isReadable &= ((byte)flags & (byte)MemorySearchFlags.Read) > 0;
                         isWritable &= ((byte)flags & (byte)MemorySearchFlags.Write) > 0;
                         isExecutable &= ((byte)flags & (byte)MemorySearchFlags.Execute) > 0;

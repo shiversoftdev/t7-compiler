@@ -38,5 +38,14 @@ namespace System.PEStructures
         {
             return VirtualToRelative((int)va);
         }
+
+        internal int GetPtrFromRVA(int rva, PointerEx imageBase)
+        {
+            PointerEx delta;
+
+            var sectionHeader = Headers.SectionHeaders[Headers.GetContainingSectionIndex(rva)];
+            delta = (sectionHeader.VirtualAddress - sectionHeader.PointerToRawData);
+            return (imageBase + rva - delta);
+        }
     }
 }

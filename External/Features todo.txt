@@ -1,14 +1,23 @@
 ﻿Freeze/Unfreeze memory value
-proc.Alloc(size, commit?, protect?);
-proc.CreateRemoteThread
 Suspend/Resume Process
 Inject DLL via:
 	ThreadEx.Hijack
 	LoadLibraryA/CreateRemoteThread
-	Manual Map
+	Manual Map (Lunar method, or upgrade features to match that of lunar's)
 	Managed dll inject
-	SetWindowsHookEx (hijack native process)
+	SetWindowsHookEx
 Search memory via byte patterns
 Hijack processes for handles (rpc protocol)
 	Internal.dll?
 proc.MapFunction
+self doppelgang
+
+Testing TODO:
+
+	float/double RPC
+	32 bit thread hijacking
+
+Bug Fixes TODO:
+	
+	Process wait monitor for a closed process does not correctly work.
+	Still appears to be sporadic crashing sometimes in the process. I suspect todo with register values being corrupted.

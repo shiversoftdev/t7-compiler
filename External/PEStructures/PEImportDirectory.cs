@@ -53,7 +53,7 @@ namespace System.PEStructures
                 // Check if the function is imported via ordinal
                 if ((importThunk & int.MinValue) != 0)
                 {
-                    importOrdinal = importThunk & ushort.MaxValue;
+                    importOrdinal = importThunk & (long)ushort.MaxValue;
                     yield return new PEImport(null, functionOffset, importOrdinal);
                     continue;
                 }
