@@ -37,7 +37,9 @@ namespace DebugCompiler
         {
             try
             {
-                ulong local_version = ParseVersion(GetEmbeddedVersion());
+                string lv = GetEmbeddedVersion();
+                Console.WriteLine($"T7 Compiler version {lv}, by Serious");
+                ulong local_version = ParseVersion(lv);
                 ulong remote_version = 0;
                 Console.WriteLine($"Checking client version... (our version is {local_version:X})");
                 using (WebClient client = new WebClient())
@@ -96,7 +98,7 @@ namespace DebugCompiler
             for(int i = 0; i < numbers.Length; i++, index++)
             {
                 int real_index = numbers.Length - 1 - i;
-                uint num = ushort.Parse(numbers[real_index]);
+                ulong num = ushort.Parse(numbers[real_index]);
                 result += num << (index * 16);
             }
             return result;
@@ -563,6 +565,13 @@ namespace DebugCompiler
 
             string cpath = "compiled.gsc";
             File.WriteAllBytes(cpath, code.CompiledScript);
+            string hpath = "hashes.txt";
+            StringBuilder hashes = new StringBuilder();
+            foreach(var kvp in code.HashMap)
+            {
+                hashes.AppendLine($"0x{kvp.Key:X}, {kvp.Value}");
+            }
+            File.WriteAllText(hpath, hashes.ToString());
      
             Success(cpath);
             Success("Script compiled. Press I to inject or anything else to continue");

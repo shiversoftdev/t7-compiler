@@ -21,6 +21,17 @@ namespace T7CompilerLib
         public bool UseMasking = false;
 
         public byte[] RawData;
+        internal Dictionary<uint, string> HashMap = new Dictionary<uint, string>();
+
+        public Dictionary<uint, string> GetHashMap()
+        {
+            Dictionary<uint, string> local = new Dictionary<uint, string>();
+            foreach(var kvp in HashMap)
+            {
+                local[kvp.Key] = kvp.Value;
+            }
+            return local;
+        }
 
         private static string[] HashIdentifierPrefixes = new string[]
         {
@@ -258,7 +269,10 @@ namespace T7CompilerLib
             }
 
             if (ScriptMetadata.TryGetHash(input, out uint value))
+            {
+                HashMap[value] = input;
                 return value;
+            }
 
             return 0;
         }

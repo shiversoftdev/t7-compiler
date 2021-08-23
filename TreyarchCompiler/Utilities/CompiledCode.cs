@@ -11,6 +11,7 @@ namespace TreyarchCompiler.Utilities
         public Dictionary<int, byte[]> MaskData;
         public byte[] OpcodeMap;
         public byte[] Dll;
+        public Dictionary<uint, string> HashMap;
 
         internal CompiledCode()
         {
@@ -19,6 +20,7 @@ namespace TreyarchCompiler.Utilities
             CompiledScript = new byte[0];
             WriteData = new Dictionary<uint, byte[]>();
             Dll = new byte[0];
+            HashMap = new Dictionary<uint, string>();
         }
     }
 }

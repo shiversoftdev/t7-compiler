@@ -176,7 +176,10 @@ namespace t7c_installer
             }
 
             // purge old installation
-            Directory.Delete(Path.Combine(InstallRoot, "t7compiler"), true);
+            if(Directory.Exists(Path.Combine(InstallRoot, "t7compiler")))
+            {
+                Directory.Delete(Path.Combine(InstallRoot, "t7compiler"), true);
+            }
 
             // copy new installation
             DirectoryCopy(Path.Combine(UpdateTempDirname, "t7compiler"), Path.Combine(InstallRoot, "t7compiler"), true);

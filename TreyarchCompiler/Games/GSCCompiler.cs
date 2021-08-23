@@ -112,7 +112,8 @@ namespace TreyarchCompiler.Games
             var assemble_ticks = DateTime.Now.Ticks;
             try 
             { 
-                data.CompiledScript = Script.Serialize(); 
+                data.CompiledScript = Script.Serialize();
+                data.HashMap = Script.GetHashMap();
             } catch (Exception ex) { data.Error = ex.ToString(); }
             var finalticks = DateTime.Now.Ticks;
 
