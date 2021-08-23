@@ -155,7 +155,7 @@ namespace t7c_installer
                 }
                 if ((index = configData.IndexOf("<Symbols>")) > -1)
                 {
-                    foreach(var symbol in new string(configData.Skip(index + "<Symbols>".Length).TakeWhile((c) => { return c != '<'; }).ToArray()).ToUpper().Split(','))
+                    foreach(var symbol in new string(configData.Skip(index + "<Symbols>".Length).TakeWhile((c) => { return c != '<'; }).ToArray()).ToUpper().Split(';'))
                     {
                         symbols.Add(symbol);
                     }
