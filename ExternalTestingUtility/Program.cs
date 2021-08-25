@@ -80,6 +80,8 @@ namespace t7c_installer
 
         static void DeployCompiler(string compilerDirectory, string defaultProjectDirectory, string solutionDirectory)
         {
+            string installer = Assembly.GetEntryAssembly().Location;
+
             // clear __depot
             string depot = Path.Combine(solutionDirectory, "__depot");
             string build = Path.Combine(depot, "build");
@@ -97,6 +99,9 @@ namespace t7c_installer
                 File.Copy(file, Path.Combine(compilerTarget, Path.GetFileName(file)), true);
             }
 
+            // copy this utility to the output folder for reuse later
+            File.Copy(installer, Path.Combine(compilerTarget, Path.GetFileName(installer)));
+
             // pack default project into __depot/build/defaultproject
             string dprojTarget = Path.Combine(build, "defaultproject");
             Directory.CreateDirectory(dprojTarget);
@@ -110,7 +115,6 @@ namespace t7c_installer
             }
 
             ZipFile.CreateFromDirectory(build, Path.Combine(depot, "update.zip"));
-            string installer = Assembly.GetEntryAssembly().Location;
             File.Copy(installer, Path.Combine(depot, Path.GetFileName(installer)));
         }
 

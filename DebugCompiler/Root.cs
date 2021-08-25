@@ -79,7 +79,7 @@ namespace DebugCompiler
             root.AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", root.cmd_HashString);
             root.AddCommand(ConsoleKey.T, "Toggle Text History", root.cmd_ToggleNoClear);
             root.AddCommand(ConsoleKey.C, "Compile Script [path]", root.cmd_Compile);
-            root.AddCommand(ConsoleKey.I, "Inject Script [path]", root.cmd_Inject);
+            root.AddCommand(ConsoleKey.I, "Inject Script [path] <inject path>", root.cmd_Inject);
             while (true)
             {
                 try { root.Exec(root.PrintOptions()); }
@@ -243,7 +243,7 @@ namespace DebugCompiler
 
         private int cmd_Inject(string[] args)
         {
-            if(args.Length != 1)
+            if(args.Length < 1)
             {
                 return Error("Invalid arguments. Please specify a file to inject.");
             }
@@ -263,7 +263,7 @@ namespace DebugCompiler
                 return Error("Failed to read the file specified");
             }
 
-            PointerEx injresult = InjectScript(@"scripts/shared/duplicaterender_mgr.gsc", buffer);
+            PointerEx injresult = InjectScript(args.Length > 1 ? args[1] : @"scripts/shared/duplicaterender_mgr.gsc", buffer);
             Console.WriteLine();
             Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
             Console.WriteLine($"\t[{"scripts/shared/duplicaterender_mgr.gsc"}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
@@ -479,6 +479,7 @@ namespace DebugCompiler
                 sb.Append("\n"); // remember that this is here because its going to fuck up irony
             }
 
+            string replaceScript = @"scripts/shared/duplicaterender_mgr.gsc";
             source = sb.ToString();
             var ppc = new ConditionalBlocks();
             List<string> conditionalSymbols = new List<string>();
@@ -496,6 +497,9 @@ namespace DebugCompiler
                             {
                                 conditionalSymbols.Add(token);
                             }
+                            break;
+                        case "script":
+                            replaceScript = split[1].ToLower().Trim().Replace("\\", "/");
                             break;
                     }
                 }
@@ -583,10 +587,10 @@ namespace DebugCompiler
 
             if(game == Games.T7 && platform == Platforms.PC)
             {
-                PointerEx injresult = InjectScript(@"scripts/shared/duplicaterender_mgr.gsc", code.CompiledScript);
+                PointerEx injresult = InjectScript(replaceScript, code.CompiledScript);
                 Console.WriteLine();
                 Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
-                Console.WriteLine($"\t[{"scripts/shared/duplicaterender_mgr.gsc"}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
+                Console.WriteLine($"\t[{replaceScript}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
 
                 if(!injresult)
                 {
