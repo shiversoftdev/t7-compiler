@@ -120,7 +120,7 @@ namespace t7c_installer
             this.ConvertProj.Name = "ConvertProj";
             this.ConvertProj.Size = new System.Drawing.Size(240, 30);
             this.ConvertProj.TabIndex = 1;
-            this.ConvertProj.Text = "Auto-port IL Project";
+            this.ConvertProj.Text = "Auto-port T7 IL Project";
             this.ConvertProj.UseVisualStyleBackColor = true;
             this.ConvertProj.Click += new System.EventHandler(this.ConvertProj_Click);
             // 

@@ -24,15 +24,6 @@ namespace TreyarchCompiler
 
         public static CompiledCode CompileRCE(Platforms platform, Enums.Games game, Modes mode, string code, string address, string path = "")
         {
-            switch (platform)
-            {
-                case Platforms.PC:
-                    return CompilePC(game, mode, code, path, false)?.Compile(address);
-
-                case Platforms.Xbox:
-                case Platforms.PS3:
-                    return CompileConsole(game, mode, code, path)?.Compile(address);
-            }
             return null;
         }
 
@@ -42,6 +33,8 @@ namespace TreyarchCompiler
             {
                 case Enums.Games.T7:
                     return new GSCCompiler(mode, code, path, Platforms.PC, game, false);
+                case Enums.Games.T8:
+                    return new T89Compiler(game, code);
             }
             return null;
         }

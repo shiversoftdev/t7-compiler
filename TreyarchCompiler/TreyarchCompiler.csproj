@@ -89,6 +89,8 @@
     <Compile Include="Enums\Platforms.cs" />
     <Compile Include="Games\BO2\BO2Syntax.cs" />
     <Compile Include="Games\GSCCompiler.cs" />
+    <Compile Include="Games\T8Compiler.cs" />
+    <Compile Include="NewSyntax.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -118,6 +120,10 @@
     <ProjectReference Include="..\T7CompilerLib\T7CompilerLib.csproj">
       <Project>{7527fb74-e8ac-43f1-9e48-e9d4d2b5d5b3}</Project>
       <Name>T7CompilerLib</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\T8CompilerLib\T89CompilerLib.csproj">
+      <Project>{c630e36a-4a4c-4f14-aa8b-ae80f592daad}</Project>
+      <Name>T89CompilerLib</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

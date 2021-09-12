@@ -80,11 +80,17 @@ namespace t7c_installer
 
         private void CreateDefaultProject_Click(object sender, EventArgs e)
         {
+            var box = new CComboDialog("Game for Project", new string[] { "Black Ops III", "Black Ops 4" });
+            if (box.ShowDialog() != DialogResult.OK)
+            {
+                return;
+            }
+            var game = (box.SelectedValue.ToString() == "Black Ops 4") ? "T8" : "T7";
             FolderBrowserDialog fbd = new FolderBrowserDialog();
             fbd.ShowNewFolderButton = true;
             fbd.Description = "Select a folder to copy the default project to";
             if (fbd.ShowDialog() != DialogResult.OK) return;
-            Program.CopyDefaultProject(fbd.SelectedPath);
+            Program.CopyDefaultProject(fbd.SelectedPath, game);
             Process.Start(fbd.SelectedPath);
             CErrorDialog.Show("Success!", "Project installed successfully", true);
         }

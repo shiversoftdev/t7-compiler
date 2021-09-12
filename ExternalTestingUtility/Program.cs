@@ -209,25 +209,25 @@ namespace t7c_installer
             IsUpdating = false;
         }
 
-        public static void CopyDefaultProject(string path, bool noAppend = false)
+        public static void CopyDefaultProject(string path, string gameExt, bool noAppend = false)
         {
             if(!noAppend)
             {
                 path = Path.Combine(path, "Default Project");
             }
-            if (Directory.Exists(Path.Combine(InstallRoot, "t7compiler", "defaultproject")))
+            if (Directory.Exists(Path.Combine(InstallRoot, "t7compiler", "defaultproject", gameExt)))
             {
                 // copy default project
-                DirectoryCopy(Path.Combine(InstallRoot, "t7compiler", "defaultproject"), path, true);
+                DirectoryCopy(Path.Combine(InstallRoot, "t7compiler", "defaultproject", gameExt), path, true);
                 return;
             }
-            if (Directory.Exists(Path.Combine(UpdateTempDirname, "defaultproject")))
+            if (Directory.Exists(Path.Combine(UpdateTempDirname, "defaultproject", gameExt)))
             {
                 // restore default project
                 DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject"), Path.Combine(InstallRoot, "t7compiler", "defaultproject"), true);
 
                 // copy default project
-                DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject"), path, true);
+                DirectoryCopy(Path.Combine(UpdateTempDirname, "defaultproject", gameExt), path, true);
                 return;
             }
 
@@ -239,7 +239,7 @@ namespace t7c_installer
             IsUpdating = false;
 
             // try again
-            CopyDefaultProject(path);
+            CopyDefaultProject(path, gameExt, noAppend);
         }
 
         internal static void NoExcept(Action a)

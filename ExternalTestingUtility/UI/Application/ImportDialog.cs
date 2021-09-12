@@ -116,7 +116,7 @@ namespace t7c_installer
             }
 
             // 2. Install a default project in that directory
-            Program.CopyDefaultProject(OutputFolderPath, true);
+            Program.CopyDefaultProject(OutputFolderPath, "T7", true);
 
             // 3. Clear out the scripts folder
             string scripts = Path.Combine(OutputFolderPath, "scripts");

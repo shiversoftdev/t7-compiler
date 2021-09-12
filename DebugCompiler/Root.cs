@@ -38,7 +38,7 @@ namespace DebugCompiler
             try
             {
                 string lv = GetEmbeddedVersion();
-                Console.WriteLine($"T7 Compiler version {lv}, by Serious");
+                Console.WriteLine($"T7/T8 Compiler version {lv}, by Serious");
                 ulong local_version = ParseVersion(lv);
                 ulong remote_version = 0;
                 Console.WriteLine($"Checking client version... (our version is {local_version:X})");
@@ -71,15 +71,15 @@ namespace DebugCompiler
             Root root = new Root();
             if (args.Length > 0 && args[0] == "--build")
             {
-                root.cmd_Compile(new string[] { "scripts", "pc", "t7", "false", "--build" });
+                root.cmd_Compile(new string[] { "scripts", "pc", null, "false", "--build" });
                 return;
             }
             
             root.AddCommand(ConsoleKey.Q, "Quit Program", root.cmd_Exit);
             root.AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", root.cmd_HashString);
             root.AddCommand(ConsoleKey.T, "Toggle Text History", root.cmd_ToggleNoClear);
-            root.AddCommand(ConsoleKey.C, "Compile Script [path]", root.cmd_Compile);
-            root.AddCommand(ConsoleKey.I, "Inject Script [path] <inject path>", root.cmd_Inject);
+            root.AddCommand(ConsoleKey.C, "Compile Script [path] <T7|T8>", root.cmd_Compile);
+            root.AddCommand(ConsoleKey.I, "Inject Script [path] <T7|T8> <inject path>", root.cmd_Inject);
             while (true)
             {
                 try { root.Exec(root.PrintOptions()); }
@@ -253,6 +253,15 @@ namespace DebugCompiler
                 return Error("Invalid arguments. Specified file does not exist.");
             }
 
+            Games game = Games.T7;
+            if (args.Length > 1)
+            {
+                if (!Enum.TryParse(args[1], true, out game))
+                {
+                    game = Games.T7;
+                }
+            }
+
             byte[] buffer = null;
             try
             {
@@ -263,7 +272,7 @@ namespace DebugCompiler
                 return Error("Failed to read the file specified");
             }
 
-            PointerEx injresult = InjectScript(args.Length > 1 ? args[1] : @"scripts/shared/duplicaterender_mgr.gsc", buffer);
+            PointerEx injresult = InjectScript(args.Length > 1 ? args[1] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc"), buffer, game);
             Console.WriteLine();
             Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
             Console.WriteLine($"\t[{"scripts/shared/duplicaterender_mgr.gsc"}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
@@ -275,7 +284,7 @@ namespace DebugCompiler
                 Console.ForegroundColor = ConsoleColor.Yellow;
 
                 Console.ReadKey(true);
-                NoExcept(FreeScript);
+                NoExcept(FreeActiveScript);
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine("\tScript parsetree has been reset\n");
                 Console.ForegroundColor = ConsoleColor.White;
@@ -450,8 +459,59 @@ namespace DebugCompiler
             if (!Directory.Exists(args[0]))
                 return Error("Path is either not a directory or does not exist");
 
+            List<string> conditionalSymbols = new List<string>();
+            string replaceScript = null;
+
             Platforms platform = Platforms.PC;
             Games game = Games.T7;
+
+            if (args.Length > 1)
+            {
+                try
+                {
+                    game = (Games)Enum.Parse(typeof(Games), args[1], true);
+                }
+                catch { }
+            }
+
+            if (File.Exists("gsc.conf"))
+            {
+                foreach (string line in File.ReadAllLines("gsc.conf"))
+                {
+                    if (line.Trim().StartsWith("#")) continue;
+                    var split = line.Trim().Split('=');
+                    if (split.Length < 2) continue;
+                    switch (split[0].ToLower().Trim())
+                    {
+                        case "symbols":
+                            foreach (string token in split[1].Trim().Split(','))
+                            {
+                                conditionalSymbols.Add(token);
+                            }
+                            break;
+                        case "script":
+                            replaceScript = split[1].ToLower().Trim().Replace("\\", "/");
+                            break;
+                        case "game":
+                            if (!Enum.TryParse(split[1].ToLower().Trim().Replace("\\", "/"), true, out game))
+                            {
+                                game = Games.T7;
+                            }
+                            break;
+                    }
+                }
+            }
+
+            bool isT7 = game == Games.T7;
+
+            //if (args.Length > 1)
+            //{
+            //    if(!Enum.TryParse(args[1], true, out game))
+            //    {
+            //        game = Games.T7;
+            //    }
+            //}
+
             string source = "";
             CompiledCode code;
             List<SourceTokenDef> SourceTokens = new List<SourceTokenDef>();
@@ -477,33 +537,13 @@ namespace DebugCompiler
                 // Console.WriteLine($"{CurrentSource.FilePath} start {CurrentSource.LineStart} end {CurrentSource.LineEnd}");
                 SourceTokens.Add(CurrentSource);
                 sb.Append("\n"); // remember that this is here because its going to fuck up irony
+                end_loop:;
             }
 
-            string replaceScript = @"scripts/shared/duplicaterender_mgr.gsc";
+            replaceScript = replaceScript ?? (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
             source = sb.ToString();
             var ppc = new ConditionalBlocks();
-            List<string> conditionalSymbols = new List<string>();
-            conditionalSymbols.Add("BO3");
-            if (File.Exists("gsc.conf"))
-            {
-                foreach(string line in File.ReadAllLines("gsc.conf"))
-                {
-                    var split = line.Trim().Split('=');
-                    if (split.Length < 2) continue;
-                    switch(split[0].ToLower().Trim())
-                    {
-                        case "symbols":
-                            foreach(string token in split[1].Trim().Split(','))
-                            {
-                                conditionalSymbols.Add(token);
-                            }
-                            break;
-                        case "script":
-                            replaceScript = split[1].ToLower().Trim().Replace("\\", "/");
-                            break;
-                    }
-                }
-            }
+            conditionalSymbols.Add(isT7 ? "BO3" : "BO4");
             ppc.LoadConditionalTokens(conditionalSymbols);
             
             try
@@ -567,7 +607,7 @@ namespace DebugCompiler
                 return Error(code.Error);
             }
 
-            string cpath = "compiled.gsc";
+            string cpath = "compiled.gscc";
             File.WriteAllBytes(cpath, code.CompiledScript);
             string hpath = "hashes.txt";
             StringBuilder hashes = new StringBuilder();
@@ -585,32 +625,38 @@ namespace DebugCompiler
 
             byte[] data = code.CompiledScript;
 
-            if(game == Games.T7 && platform == Platforms.PC)
-            {
-                PointerEx injresult = InjectScript(replaceScript, code.CompiledScript);
-                Console.WriteLine();
-                Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
-                Console.WriteLine($"\t[{replaceScript}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
+            PointerEx injresult = InjectScript(replaceScript, code.CompiledScript, game);
+            Console.WriteLine();
+            Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
+            Console.WriteLine($"\t[{replaceScript}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
 
-                if(!injresult)
-                {
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-
-                    Console.ReadKey(true);
-                    NoExcept(FreeScript);
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("\tScript parsetree has been reset\n");
-                    Console.ForegroundColor = ConsoleColor.White;
-                }
-            }
-            else
+            if (!injresult)
             {
-                Error("Cannot inject to this platform");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
+                Console.ForegroundColor = ConsoleColor.Yellow;
+
+                Console.ReadKey(true);
+                NoExcept(FreeActiveScript);
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("\tScript parsetree has been reset\n");
+                Console.ForegroundColor = ConsoleColor.White;
             }
 
             return 0;
+        }
+
+        private void FreeActiveScript()
+        {
+            switch(LastGameInjected)
+            {
+                case Games.T7:
+                    NoExcept(FreeT7Script);
+                    break;
+                case Games.T8:
+                    NoExcept(FreeT8Script);
+                    break;
+            }
         }
 
         private void NoExcept(Action a)
@@ -622,31 +668,43 @@ namespace DebugCompiler
             catch { }
         }
 
+        private Games LastGameInjected;
         private PointerEx llpModifiedSPTStruct = 0;
         private PointerEx llpOriginalBuffer;
         private int OriginalSourceChecksum;
         private int InjectedBuffSize;
         private T7SPT InjectedScript;
         private int OriginalPID = 0;
-        private int InjectScript(string replacePath, byte[] buffer)
+        private int InjectScript(string replacePath, byte[] buffer, Games game)
         {
-            NoExcept(FreeScript);
-            if(BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
+            LastGameInjected = game;
+            switch (game)
             {
-                return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III");
+                case Games.T7: return InjectT7(replacePath, buffer);
+                case Games.T8: return InjectT8(replacePath, buffer);
+            }
+            return Error("Invalid game provided to inject.");
+        }
+
+        private int InjectT7(string replacePath, byte[] buffer)
+        {
+            NoExcept(FreeT7Script);
+            if (BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
+            {
+                return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
             }
             ProcessEx bo3 = "blackops3";
             if (bo3 == null)
             {
-                return Error("No game process found for black ops 3");
+                return Error("No game process found for Black Ops III.");
             }
             bo3.OpenHandle();
             OriginalPID = bo3.BaseProcess.Id;
             Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3[0x9409AB0]}");
             var sptGlob = bo3.GetValue<ulong>(bo3[0x9409AB0]);
-            var sptCount = bo3.GetValue<int>(bo3[0x9409AB0] + 0x14);
+            var sptCount = bo3.GetValue<int>(bo3[0x9409AB0 + 0x14]);
             var SPTEntries = bo3.GetArray<T7SPT>(sptGlob, sptCount);
-            for(int i = 0; i < SPTEntries.Length; i++)
+            for (int i = 0; i < SPTEntries.Length; i++)
             {
                 var entry = SPTEntries[i];
                 if (!entry.llpName) continue;
@@ -654,13 +712,13 @@ namespace DebugCompiler
                 {
                     // find target
                     var name = bo3.GetString(entry.llpName);
-                    if(name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
+                    if (name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
                     {
                         // cache target info
                         llpModifiedSPTStruct = (ulong)(i * Marshal.SizeOf(typeof(T7SPT))) + sptGlob;
                         llpOriginalBuffer = entry.lpBuffer;
                         OriginalSourceChecksum = bo3.GetValue<int>(llpOriginalBuffer + 0x8);
-                        
+
                         // patch script into memory
                         entry.lpBuffer = bo3.QuickAlloc(buffer.Length);
                         BitConverter.GetBytes(OriginalSourceChecksum).CopyTo(buffer, 0x8);
@@ -685,7 +743,131 @@ namespace DebugCompiler
             return 2;
         }
 
-        private void FreeScript()
+        private T8InjectCache InjectCache;
+
+        private int InjectT8(string replacePath, byte[] buffer)
+        {
+            NoExcept(FreeT8Script);
+            if (BitConverter.ToInt64(buffer, 0) != 0x36000A0D43534780)
+            {
+                return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops 4.");
+            }
+            ProcessEx bo4 = "blackops4";
+            if (bo4 is null)
+            {
+                return Error("No game process found for Black Ops 4.");
+            }
+
+            bo4.OpenHandle();
+            OriginalPID = bo4.BaseProcess.Id;
+            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo4[0x912BBB0]}");
+            var sptGlob = bo4.GetValue<ulong>(bo4[0x912BBB0]);
+            var sptCount = bo4.GetValue<int>(bo4[0x912BBB0 + 0x14]);
+            var SPTEntries = bo4.GetArray<T8SPT>(sptGlob, sptCount);
+            replacePath = replacePath.ToLower().Trim().Replace("\\", "/");
+            var surrogateScript = T8s64Hash(replacePath); // script we are hooking
+            var targetScript = 0x124CECFF7280BE52; // script we are replacing
+            InjectCache.hSurrogate = 0;
+            InjectCache.hTarget = 0;
+
+            for (int i = 0; i < SPTEntries.Length; i++)
+            {
+                var spt = SPTEntries[i];
+                if (spt.ScriptName == surrogateScript)
+                {
+                    InjectCache.Surrogate = spt;
+                    InjectCache.hSurrogate = sptGlob + (ulong)(i * Marshal.SizeOf(typeof(T8SPT)));
+                }
+                if (spt.ScriptName == targetScript)
+                {
+                    InjectCache.Target = spt;
+                    InjectCache.hTarget = sptGlob + (ulong)(i * Marshal.SizeOf(typeof(T8SPT)));
+                }
+                if(InjectCache.hSurrogate && InjectCache.hTarget)
+                {
+                    break;
+                }
+            }
+
+            try
+            {
+                if (!InjectCache.hSurrogate || !InjectCache.hTarget)
+                {
+                    return Error("Unable to identify critical injection information. Double check your script path, and try restarting the game. Make sure you are injecting in the pregame lobby.");
+                }
+
+                int includeOff = 0x58;
+                int tableOff = 0x18;
+
+                // patch include
+                byte includeCount = bo4.GetValue<byte>(InjectCache.Surrogate.Buffer + includeOff);
+                PointerEx includeTable = InjectCache.Surrogate.Buffer + bo4.GetValue<int>(InjectCache.Surrogate.Buffer + tableOff);
+                for (int i = 0; i < includeCount; i++)
+                {
+                    if (bo4.GetValue<long>(includeTable + (i * 8)) == targetScript)
+                    {
+                        goto patchBuff;
+                    }
+                }
+                bo4.SetValue(includeTable + (includeCount * 8), targetScript);
+                bo4.SetValue(InjectCache.Surrogate.Buffer + includeOff, (byte)(includeCount + 1));
+
+                patchBuff:
+                bo4.GetBytes(InjectCache.Target.Buffer + 0x8, 8).CopyTo(buffer, 0x8); // crc32
+                InjectCache.hBuffer = bo4.QuickAlloc(buffer.Length); // space
+                bo4.SetBytes(InjectCache.hBuffer, buffer); // write to proc
+                bo4.SetValue<long>(InjectCache.hTarget + 0x10, InjectCache.hBuffer); // buffer pointer redirect
+                InjectCache.Pid = bo4.BaseProcess.Id;
+                InjectCache.BufferSize = buffer.Length;
+                InjectCache.IsInjected = true;
+            }
+            catch
+            {
+                return Error("Unknow error while injecting...");
+            }
+            finally
+            {
+                bo4.CloseHandle();
+            }
+
+            return 0;
+        }
+
+        private void FreeT8Script()
+        {
+            if (!InjectCache.IsInjected)
+            {
+                return;
+            }
+
+            ProcessEx bo4 = "blackops4";
+            if (bo4 is null)
+            {
+                return;
+            }
+
+            if (bo4.BaseProcess.Id != InjectCache.Pid)
+            {
+                return;
+            }
+
+            bo4.OpenHandle();
+
+            try
+            {
+                // free allocated space
+                ProcessEx.VirtualFreeEx(bo4.Handle, InjectCache.hBuffer, (uint)InjectCache.BufferSize, (int)EnvironmentEx.FreeType.Release);
+
+                // Patch spt struct
+                bo4.SetStruct(InjectCache.hTarget, InjectCache.Target);
+            }
+            finally
+            {
+                bo4.CloseHandle();
+            }
+        }
+
+        private void FreeT7Script()
         {
             if (!llpModifiedSPTStruct) return;
             ProcessEx bo3 = "blackops3";
@@ -702,6 +884,18 @@ namespace DebugCompiler
             bo3.CloseHandle();
         }
 
+        private struct T8InjectCache
+        {
+            public T8SPT Surrogate;
+            public T8SPT Target;
+            public PointerEx hSurrogate;
+            public PointerEx hTarget;
+            public PointerEx hBuffer;
+            public int BufferSize;
+            public int Pid;
+            public bool IsInjected;
+        }
+
         [StructLayout(LayoutKind.Sequential, Pack = 2)]
         struct T7SPT
         {
@@ -710,13 +904,43 @@ namespace DebugCompiler
             public int Pad;
             public PointerEx lpBuffer;//10
         };
-        
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private struct T8SPT
+        {
+            public PointerEx ScriptName;
+            public long pad0;
+            public PointerEx Buffer;
+            public int Size;
+            public int Unk0;
+        };
+
         private int cmd_Dump(string[] args)
         {
             return -1;
         }
 
-#endregion
+        #endregion
+
+        private static HashSet<string> HashIdentifierPrefixes = new HashSet<string>() { "script_" };
+        public static ulong T8s64Hash(string input)
+        {
+            input = input.ToLower();
+
+            //if input starts with func_, var_, or hash_, use the provided hash (if possible)
+            foreach (string hashprefix in HashIdentifierPrefixes)
+            {
+                if (input[0] != hashprefix[0] || input.Length <= hashprefix.Length)
+                    continue;
+                if (!input.StartsWith(hashprefix))
+                    continue;
+                if (!ulong.TryParse(input.Substring(hashprefix.Length), NumberStyles.HexNumber, default, out ulong result))
+                    break;
+                return result;
+            }
+
+            return 0x7FFFFFFFFFFFFFFF & HashFNV1a(Encoding.ASCII.GetBytes(input));
+        }
 
         uint Com_Hash(string Input, uint IV, uint XORKEY)
         {
@@ -730,7 +954,7 @@ namespace DebugCompiler
             return hash;
         }
 
-        public ulong HashFNV1a(byte[] bytes, ulong fnv64Offset, ulong fnv64Prime)
+        public static ulong HashFNV1a(byte[] bytes, ulong fnv64Offset = 14695981039346656037, ulong fnv64Prime = 0x100000001b3)
         {
             ulong hash = fnv64Offset;
 

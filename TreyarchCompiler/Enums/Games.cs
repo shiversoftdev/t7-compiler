@@ -4,7 +4,6 @@
     {
         T6, //BO2
         T7, //BO3
-        T8,  //BO4
-        T9 //Cold War
+        T8  //BO4
     }
 }
