@@ -121,11 +121,24 @@ namespace System
 
         private void PInfoUpdate(object sender, EventArgs e)
         {
-            BaseProcess.Refresh();
-            if(BaseProcess.HasExited)
+            if (!Refresh())
             {
                 ProcInfoTimer.Change(Timeout.Infinite, Timeout.Infinite);
             }
+        }
+
+        public bool Refresh()
+        {
+            try
+            {
+                BaseProcess = Process.GetProcessById(BaseProcess.Id);
+            }
+            catch
+            {
+                BaseProcess = null;
+                return false;
+            }
+            return true;
         }
 
         private void P_Exited(object sender, EventArgs e) 
@@ -135,7 +148,7 @@ namespace System
 
         public PointerEx OpenHandle(int dwDesiredAccess = PROCESS_ACCESS, bool newOnly = false) 
         {
-            if (BaseProcess.HasExited) return IntPtr.Zero;
+            if (!Refresh()) return IntPtr.Zero;
             if (Handle.IntPtr == IntPtr.Zero || newOnly) Handle = OpenProcess(dwDesiredAccess, false, BaseProcess.Id);
             return Handle;
         }
@@ -304,7 +317,7 @@ namespace System
         /// <returns></returns>
         public PointerEx MapModule(Memory<byte> moduleData, ModuleLoadOptions loadOptions = null)
         {
-            if (BaseProcess.HasExited)
+            if (!Refresh())
             {
                 throw new InvalidOperationException(DSTR(DSTR_INJECT_DEAD_PROC));
             }
@@ -323,7 +336,8 @@ namespace System
             // return result;
 
             var data = moduleData.ToArray();
-            PointerEx hModule = MapModuleToMemory(data.Unmanaged(), data).ModuleBase;
+            var module = MapModuleToMemory(data.Unmanaged(), data);
+            PointerEx hModule = module.ModuleBase;
             if(loadOptions != null)
             {
                 if(loadOptions.ExecMain)
@@ -336,6 +350,11 @@ namespace System
                     {
                         throw new Exception(DSTR(DSTR_DINVOKE_MAIN_FAILED));
                     }
+                }
+                if(loadOptions.ClearHeader)
+                {
+                    var SizeOfHeaders = module.PEINFO.Is32Bit ? module.PEINFO.OptHeader32.SizeOfHeaders : module.PEINFO.OptHeader64.SizeOfHeaders;
+                    SetBytes(hModule, new byte[(int)SizeOfHeaders]);
                 }
                 // TODO TLS CALLBACKS
             }
@@ -381,16 +400,35 @@ namespace System
             Native.UNICODE_STRING uModuleName = new Native.UNICODE_STRING();
             Native.RtlInitUnicodeStringD(ref uModuleName, dllPath);
             var Address = GetProcAddress(@"ntdll.dll", @"LdrLoadDll");
+
+            // copy the string data
+            byte[] stringContents = new byte[uModuleName.MaximumLength];
+            Marshal.Copy(uModuleName.Buffer, stringContents, 0, uModuleName.Length);
+            var remoteBuff = QuickAlloc((int)uModuleName.MaximumLength);
+            SetBytes(remoteBuff, stringContents);
+            uModuleName.Buffer = remoteBuff;
+
             object[] args =
             {
                 0L, 0L, uModuleName, new byte[sizeof(long)]
             };
-            Native.NTSTATUS returnStatus = (Native.NTSTATUS)CallRef<int>(Address, ref args);
-            if(returnStatus != Native.NTSTATUS.Success)
+            try
             {
-                return 0;
+                Native.NTSTATUS returnStatus = (Native.NTSTATUS)CallRef<int>(Address, ref args);
+                if (returnStatus != Native.NTSTATUS.Success)
+                {
+                    return 0;
+                }
             }
-            BaseProcess.Refresh(); // so that any relevant dependencies are passed into the process context for modules
+            finally
+            {
+                try
+                {
+                    VirtualFreeEx(Handle, remoteBuff, uModuleName.MaximumLength, (int)FreeType.Release);
+                }
+                catch { }
+            }
+            Refresh(); // so that any relevant dependencies are passed into the process context for modules
             return BitConverter.ToInt64((byte[])args[3], 0);
         }
 
@@ -409,13 +447,25 @@ namespace System
                     return dll;
                 }
             }
+
             var baseAddress = LdrLoadDllRemote(dllPath);
             if(!baseAddress)
             {
                 throw new Exception(DSTR(DSTR_FAILED_LOAD_MODULE, dllPath));
             }
+
+            // check for it in the modules list again
+            foreach (var dll in Modules)
+            {
+                if (dll.ModulePath == dllPath)
+                {
+                    return dll;
+                }
+            }
+
+            // cache local
             var dllName = Path.GetFileName(dllPath);
-            RTModulesRegistry[dllName] = new ProcessModuleEx(baseAddress, dllPath);
+            RTModulesRegistry[dllName] = new ProcessModuleEx(baseAddress, ResolveFilePath(dllPath));
             return RTModulesRegistry[dllName];
         }
 
@@ -427,7 +477,7 @@ namespace System
 
         internal bool IsWow64Process()
         {
-            if(!IsWow64Process(BaseProcess.Handle, out bool result)) throw new ComponentModel.Win32Exception();
+            if(BaseProcess is null || !IsWow64Process(BaseProcess.Handle, out bool result)) throw new ComponentModel.Win32Exception();
             return result;
         }
 
@@ -448,6 +498,17 @@ namespace System
         }
 
         /// <summary>
+        /// Call a remote procedure. Arguments are not passed by reference, and may not be manipulated by the calling process. Structs are shallow copy. Will await return signal.
+        /// </summary>
+        /// <param name="absoluteAddress"></param>
+        /// <param name="args"></param>
+        /// <returns></returns>
+        public void Call(PointerEx absoluteAddress, params object[] args)
+        {
+            _ = __CallAsync<VOID>(absoluteAddress, DefaultRPCType, null, args).Result;
+        }
+
+        /// <summary>
         /// Call a remote procedure, with a return type. Arguments are not passed by reference, and may not be manipulated by the calling process. Structs are shallow copy. Will await return signal.
         /// </summary>
         /// <param name="absoluteAddress"></param>
@@ -460,6 +521,18 @@ namespace System
         }
 
         /// <summary>
+        /// Call a remote procedure. Arguments are not passed by reference, and may not be manipulated by the calling process. Structs are shallow copy. Will await return signal.
+        /// </summary>
+        /// <param name="absoluteAddress"></param>
+        /// <param name="callType">Type of call to initiate. Some call types must be initialized to be used.</param>
+        /// <param name="args"></param>
+        /// <returns></returns>
+        public void CallByMethod(PointerEx absoluteAddress, ExCallThreadType callType, params object[] args)
+        {
+            _ = __CallAsync<VOID>(absoluteAddress, callType, null, args).Result;
+        }
+
+        /// <summary>
         /// Call a remote procedure, with a return type. Arguments are passed by array reference, and the modified array will be the resultant params from proc. Structs are shallow copy. Will await return signal.
         /// </summary>
         /// <param name="absoluteAddress"></param>
@@ -468,6 +541,17 @@ namespace System
         public T CallRef<T>(PointerEx absoluteAddress, ref object[] args)
         {
             return CallRefByMethod<T>(absoluteAddress, DefaultRPCType, ref args);
+        }
+
+        /// <summary>
+        /// Call a remote procedure. Arguments are passed by array reference, and the modified array will be the resultant params from proc. Structs are shallow copy. Will await return signal.
+        /// </summary>
+        /// <param name="absoluteAddress"></param>
+        /// <param name="args"></param>
+        /// <returns></returns>
+        public void CallRef(PointerEx absoluteAddress, ref object[] args)
+        {
+            _ = CallRefByMethod<VOID>(absoluteAddress, DefaultRPCType, ref args);
         }
 
         /// <summary>
@@ -703,6 +787,8 @@ namespace System
                 throw new Exception(DSTR(DSTR_FIND_THREAD_HIJACK));
             }
 
+            if (BaseProcess is null) throw new InvalidOperationException();
+
             var hThreadResume = QuickAlloc(4096, true);
             var hXmmSpace = QuickAlloc(256 * 2, true);
             try
@@ -897,7 +983,7 @@ namespace System
         /// <returns></returns>
         public ProcessThread GetEarliestActiveThread()
         {
-            if (BaseProcess.HasExited) return null;
+            if (BaseProcess is null) return null;
             ProcessThread earliest = null;
             foreach(ProcessThread thread in BaseProcess.Threads)
             {
@@ -988,7 +1074,7 @@ namespace System
         { 
             get
             {
-                return BaseProcess.MainModule.BaseAddress;
+                return BaseProcess?.MainModule.BaseAddress ?? IntPtr.Zero;
             }
         }
 
@@ -997,7 +1083,7 @@ namespace System
         {
             get
             {
-                if (BaseProcess.HasExited) return IntPtr.Zero;
+                if (BaseProcess is null) return IntPtr.Zero;
                 return __handle;
             }
             private set
@@ -1010,6 +1096,7 @@ namespace System
         {
             get
             {
+                if (!Refresh()) throw new InvalidOperationException();
                 foreach (var p in RTModulesRegistry) yield return p.Value;
                 foreach (ProcessModule p in BaseProcess.Modules) yield return p;
             }
@@ -1042,6 +1129,7 @@ namespace System
     public class ModuleLoadOptions
     {
         public bool ExecMain = false;
+        public bool ClearHeader = true;
         public ExCallThreadType MainThreadType = ExCallThreadType.XCTT_NtCreateThreadEx;
 
         public static ModuleLoadOptions NONE = new ModuleLoadOptions();

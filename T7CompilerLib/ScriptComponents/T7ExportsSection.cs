@@ -460,6 +460,9 @@ namespace T7CompilerLib.ScriptComponents
             writer.Write((ushort)0x0);
             writer.Dispose();
 
+            LoadedSize = baseaddress - (uint)ByteCodeAddress;
+            LoadedOffset = (uint)ByteCodeAddress;
+
             NextExportPtr += T7ExportsSection.EXPORT_ENTRY_SIZE;
 
             NextExport?.Commit(ref data, NextExportPtr, header, EmissionTable);

@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
 using T7CompilerLib.OpCodes;
 using T7CompilerLib.ScriptComponents;
 
@@ -66,6 +67,7 @@ namespace T7CompilerLib
             __includes__ = T7IncludesSection.New(littleEndian);
             __name__ = T7NameSection.New(littleEndian);
             __strfixups__ = T7StringFixupsSection.New(__strings__);
+            Detours = new Dictionary<string, ScriptDetour>();
 
             if (NewMetadata != null)
                 ScriptMetadata = NewMetadata;
@@ -184,11 +186,19 @@ namespace T7CompilerLib
         public T7StringFixupsSection StringFixups => __strfixups__;
         private T7StringFixupsSection __strfixups__;
 
+        private Dictionary<string, ScriptDetour> Detours = new Dictionary<string, ScriptDetour>();
+
+        public bool UsingGSI { private set; get; }
+
         public byte[] Serialize()
         {
             byte[] DataBuffer = new byte[0];
             Header.Commit(ref DataBuffer, ref __header__);
             Header.CommitHeader(ref DataBuffer, ScriptMetadata.Magic);
+            if(UsingGSI)
+            {
+                EmitGSIHeader(ref DataBuffer);
+            }
             return DataBuffer;
         }
 
@@ -311,6 +321,123 @@ namespace T7CompilerLib
         {
             public ushort Value;
             public ScriptOpCode OpCode;
+        }
+
+        /// <summary>
+        /// Adds a script detour
+        /// </summary>
+        /// <param name="fixupNameHash">Hash of the local export to replace remote exports with</param>
+        /// <param name="replaceNamespaceHash">Name of the remote export's namespace</param>
+        /// <param name="replaceFunctionHash">Name of the remote export's function name</param>
+        /// <param name="replaceScriptPath">Name of the remote export's script or null if it is a builtin</param>
+        public void AddScriptDetour(string fixupName, string replaceNamespace, string replaceFunction, string replaceScriptPath)
+        {
+            var detour = new ScriptDetour()
+            {
+                FixupName = ScriptHash(fixupName),
+                ReplaceNamespace = ScriptHash(replaceNamespace),
+                ReplaceFunction = ScriptHash(replaceFunction),
+                ReplaceScript = replaceScriptPath
+            };
+            if(Detours.ContainsKey(detour.ToString()))
+            {
+                throw new DuplicateNameException($"Detour for {replaceNamespace}<{replaceScriptPath ?? "system"}>::{replaceFunction} has been defined more than once.");
+            }
+            Detours[detour.ToString()] = detour;
+            UsingGSI = true;
+        }
+
+        public class ScriptDetour
+        {
+            private const int DetourNameMaxLength = 256 - 1 - (5 * 4);
+            public uint FixupName;
+            public uint ReplaceNamespace;
+            public uint ReplaceFunction;
+            public uint FixupOffset;
+            public uint FixupSize;
+            public string ReplaceScript;
+
+            public override string ToString()
+            {
+                return $"{ReplaceNamespace:X}:{ReplaceFunction}:{ReplaceScript ?? "system"}";
+            }
+
+            public byte[] Serialize()
+            {
+                List<byte> toReturn = new List<byte>();
+                toReturn.AddRange(BitConverter.GetBytes(FixupName));
+                toReturn.AddRange(BitConverter.GetBytes(ReplaceNamespace));
+                toReturn.AddRange(BitConverter.GetBytes(ReplaceFunction));
+                toReturn.AddRange(BitConverter.GetBytes(FixupOffset));
+                toReturn.AddRange(BitConverter.GetBytes(FixupSize));
+
+                byte[] scriptPathBytes = new byte[DetourNameMaxLength + 1];
+                if(ReplaceScript != null)
+                {
+                    Encoding.ASCII.GetBytes(ReplaceScript.Substring(0, Math.Min(ReplaceScript.Length, DetourNameMaxLength))).CopyTo(scriptPathBytes, 0);
+                }
+                toReturn.AddRange(scriptPathBytes);
+                return toReturn.ToArray();
+            }
+
+            public void Deserialize(BinaryReader reader)
+            {
+                FixupName = reader.ReadUInt32();
+                ReplaceNamespace = reader.ReadUInt32();
+                ReplaceFunction = reader.ReadUInt32();
+                FixupOffset = reader.ReadUInt32();
+                FixupSize = reader.ReadUInt32();
+                byte[] scriptPathBytes = reader.ReadBytes(DetourNameMaxLength + 1);
+                string res = Encoding.ASCII.GetString(scriptPathBytes).Replace("\x00", "").Trim();
+                if(scriptPathBytes[0] != 0)
+                {
+                    ReplaceScript = res;
+                }
+            }
+        }
+
+        public enum GSIFields
+        { 
+            Detours = 0
+        }
+
+        private void EmitGSIHeader(ref byte[] data)
+        {
+            List<byte> NewHeader = new List<byte>();
+            NewHeader.AddRange(new byte[] { (byte)'G', (byte)'S', (byte)'I', (byte)'C' });
+            NewHeader.AddRange(BitConverter.GetBytes((int)0)); // num fields added
+
+            int numFields = 0;
+            // Emit Detours
+            if(Detours.Count > 0)
+            {
+                numFields++;
+
+                // Write the field type and the number of entries
+                NewHeader.AddRange(BitConverter.GetBytes((int)GSIFields.Detours));
+                NewHeader.AddRange(BitConverter.GetBytes(Detours.Count));
+
+                foreach(ScriptDetour detour in Detours.Values)
+                {
+                    // Apply post-serialize information
+                    detour.FixupOffset = Exports.ScriptExports[detour.FixupName].LoadedOffset;
+                    detour.FixupSize = Exports.ScriptExports[detour.FixupName].LoadedSize;
+
+                    // each detour should be exactly 256 bytes
+                    NewHeader.AddRange(detour.Serialize());
+                }
+            }
+
+            // copy the header
+            byte[] finalData = new byte[data.Length + NewHeader.Count];
+            NewHeader.ToArray().CopyTo(finalData, 0);
+
+            // write number of fields
+            BitConverter.GetBytes(numFields).CopyTo(finalData, 0x4);
+
+            // copy the gsc script
+            data.CopyTo(finalData, NewHeader.Count);
+            data = finalData;
         }
     }
 

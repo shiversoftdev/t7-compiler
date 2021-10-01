@@ -11,6 +11,9 @@ Hijack processes for handles (rpc protocol)
 	Internal.dll?
 proc.MapFunction
 self doppelgang
+https://github.com/aaaddress1/PR0CESS/tree/main/miniGhosting
+Event dispatcher system:
+	- Emplace hooks such that an IPC event can fire and send info back to external
 
 Testing TODO:
 

@@ -118,4 +118,7 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>xcopy /y "$(SolutionDir)$(PlatformName)\Release\t7cinternal.dll" "$(TargetDir)"</PostBuildEvent>
+  </PropertyGroup>
 </Project>

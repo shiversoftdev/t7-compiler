@@ -42,7 +42,7 @@ namespace T7CompilerLib.ScriptComponents
 
         public bool IsBuiltinImport(uint name)
         {
-            return ILBuiltins.Contains(name);
+            return false;
         }
 
         public override ushort Count()

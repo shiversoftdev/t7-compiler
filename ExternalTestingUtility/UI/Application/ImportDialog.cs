@@ -87,10 +87,8 @@ namespace t7c_installer
             if (fbd.ShowDialog() != DialogResult.OK) return;
             if (Directory.Exists(fbd.SelectedPath) && !IsDirectoryEmpty(fbd.SelectedPath))
             {
-                if(MessageBox.Show("If you select this folder, the contents will be deleted. Are you sure about this?", "Warning: Folder has contents", MessageBoxButtons.OKCancel) != DialogResult.OK)
-                {
-                    return;
-                }
+                MessageBox.Show("You cannot select this folder for output. The folder you select must be empty.", "DANGER: Folder has contents", MessageBoxButtons.OKCancel);
+                return;
             }
             OutputFolderPath = fbd.SelectedPath;
             OutputLabel.Text = OutputFolderPath.Split(new char[] { '\\' }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "Error";
@@ -109,12 +107,25 @@ namespace t7c_installer
                 return;
             }
 
+            if(ImportFolderPath.Contains(OutputFolderPath) || OutputFolderPath.Contains(ImportFolderPath))
+            {
+                CErrorDialog.Show("Conversion Failed!", "Your import and output folders must be in different directories. You either have your import folder inside your output folder, or your output folder inside your import folder.", true);
+                return;
+            }
+
             // 1. Clear output folder
             if (Directory.Exists(OutputFolderPath))
             {
                 Directory.Delete(OutputFolderPath, true);
             }
 
+            if(File.Exists(Path.Combine(ImportFolderPath, "gsc.conf")))
+            {
+                Program.DirectoryCopy(ImportFolderPath, OutputFolderPath, true);
+                CErrorDialog.Show("Success!", "Your project was migrated successfully!", true);
+                return;
+            }
+            
             // 2. Install a default project in that directory
             Program.CopyDefaultProject(OutputFolderPath, "T7", true);
 

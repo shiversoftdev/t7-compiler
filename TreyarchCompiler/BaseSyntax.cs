@@ -41,6 +41,8 @@ namespace TreyarchCompiler
         protected NonTerminal functions { private set; get; }
         protected NonTerminal globals { private set; get; }
         protected NonTerminal includes { private set; get; }
+        protected NonTerminal functionDetour { private set; get; }
+        protected NonTerminal detourPath { private set; get; }
         #endregion
 
         #region Boolean
@@ -199,7 +201,7 @@ namespace TreyarchCompiler
             #region Directives
             //Master Directive Rules
             directives.Rule = MakeStarRule(directives, null, directive);
-            directive.Rule = Empty | Overrides | includes | globals | FunctionFrame | NameSpaceDirective | usingTree;
+            directive.Rule = Empty | Overrides | includes | globals | FunctionFrame | NameSpaceDirective | usingTree | functionDetour;
 
             //Includes
             includes.Rule = ToTerm("#include") + IncludeIdentifier + ";" | 
@@ -212,6 +214,9 @@ namespace TreyarchCompiler
             functions.Rule = Identifier + parameters + block |
                              Identifier + equalOperator + parameters + "=>" + new NonTerminal("block", declaration) |
                              Identifier + equalOperator + parameters + "=>" + block + ";";
+
+            detourPath.Rule = gscForFunction | Identifier + "<" + Identifier + ".gsc" + ">" + "::" | Identifier + "<" + Identifier + ".csc" + ">" + "::";
+            functionDetour.Rule = ToTerm("detour") + detourPath + Identifier + parameters + block;
             #endregion
 
             #region Boolean
@@ -468,6 +473,8 @@ namespace TreyarchCompiler
             setVariableField = new NonTerminal("setVariableField");
             waittillframeend = new NonTerminal("waitTillFrameEnd");
             jumpStatement = new NonTerminal("jumpStatement");
+            functionDetour = new NonTerminal("functionDetour");
+            detourPath = new NonTerminal("detourPath");
             Root = new NonTerminal("program") { Rule = directives };
         }
     }

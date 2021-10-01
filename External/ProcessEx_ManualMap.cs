@@ -16,6 +16,38 @@ namespace System
 {
     public partial class ProcessEx
     {
+        private PEImage __image;
+        private PEImage Image
+        {
+            get
+            {
+                if(__image is null && !loadFailSilent)
+                {
+                    loadFailSilent = true;
+                    try
+                    {
+                        __image = new PEImage(File.ReadAllBytes(BaseProcess.MainModule.FileName));
+                    }
+                    catch { }
+                }
+                return __image;
+            }
+        }
+
+        private bool loadFailSilent = false;
+        private PEActivationContext __activationContext;
+        private PEActivationContext ActivationContext
+        {
+            get
+            {
+                if(__activationContext is null && !loadFailSilent)
+                {
+                    __activationContext = new PEActivationContext(Image.Resources.GetManifest(), this);
+                }
+                return __activationContext;
+            }
+        }
+
         /// <summary>
         /// Manually map module into remote process.
         /// </summary>
@@ -29,7 +61,7 @@ namespace System
 #endif
             // Fetch PE meta data
             PE_META_DATA PEINFO = GetPeMetaData(localModuleHandle);
-
+            
             // Check module matches the process architecture
             if ((PEINFO.Is32Bit && IntPtr.Size == 8) || (!PEINFO.Is32Bit && IntPtr.Size == 4))
             {
@@ -262,7 +294,7 @@ namespace System
                     ProcessModuleEx sModule = FindModuleByAddress(hModule);
 
 #if DEBUG
-                    DLog($"Resolved Module: {sModule.ModuleName}:{sModule.BaseAddress:X}, ?{hModule.ToInt64():X16}");
+                    DLog($"Resolved Module: {sModule.ModuleName}:{sModule.BaseAddress:X}, {sModule.ModulePath}");
 #endif
 
                     // Loop thunks
@@ -401,6 +433,67 @@ namespace System
                 }
             }
             return 0;
+        }
+
+        private string ResolveFilePath(string fileName)
+        {
+            // Check for .local redirection
+            var dotLocalFilePath = Path.Combine(BaseProcess.MainModule.FileName, ".local", fileName);
+            if (File.Exists(dotLocalFilePath))
+            {
+                return dotLocalFilePath;
+            }
+
+            // Check for SxS redirection
+            var sxsFilePath = ActivationContext?.ProbeManifest(fileName);
+            if (!(sxsFilePath is null))
+            {
+                return sxsFilePath;
+            }
+
+            // Search the root directory of the DLL
+            //if (!(_rootDirectoryPath is null))
+            //{
+            //    var rootDirectoryFilePath = Path.Combine(_rootDirectoryPath, fileName);
+
+            //    if (File.Exists(rootDirectoryFilePath))
+            //    {
+            //        return rootDirectoryFilePath;
+            //    }
+            //}
+
+            // Search the directory from which the process was loaded
+            var processDirectoryFilePath = Path.Combine(BaseProcess.MainModule.FileName, fileName);
+            if (File.Exists(processDirectoryFilePath))
+            {
+                return processDirectoryFilePath;
+            }
+
+            // Search the System directory
+            var systemDirectoryPath = GetArchitecture() == Architecture.X86 ? Environment.GetFolderPath(Environment.SpecialFolder.SystemX86) : Environment.SystemDirectory;
+            var systemDirectoryFilePath = Path.Combine(systemDirectoryPath, fileName);
+            if (File.Exists(systemDirectoryFilePath))
+            {
+                return systemDirectoryFilePath;
+            }
+
+            // Search the Windows directory
+            var windowsDirectoryFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), fileName);
+            if (File.Exists(windowsDirectoryFilePath))
+            {
+                return windowsDirectoryFilePath;
+            }
+
+            // Search the current directory
+            var currentDirectoryFilePath = Path.Combine(Directory.GetCurrentDirectory(), fileName);
+            if (File.Exists(currentDirectoryFilePath))
+            {
+                return currentDirectoryFilePath;
+            }
+
+            // Search the directories listed in the PATH environment variable
+            var path = Environment.GetEnvironmentVariable("PATH");
+            return path?.Split(';').Where(Directory.Exists).Select(directory => Path.Combine(directory, fileName)).FirstOrDefault(File.Exists);
         }
     }
 

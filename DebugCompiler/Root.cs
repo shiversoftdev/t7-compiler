@@ -607,7 +607,7 @@ namespace DebugCompiler
                 return Error(code.Error);
             }
 
-            string cpath = "compiled.gscc";
+            string cpath = $"compiled.{(code.RequiresGSI ? "gsic" : "gscc")}";
             File.WriteAllBytes(cpath, code.CompiledScript);
             string hpath = "hashes.txt";
             StringBuilder hashes = new StringBuilder();
@@ -686,12 +686,60 @@ namespace DebugCompiler
             return Error("Invalid game provided to inject.");
         }
 
+        private class GSICInfo
+        {
+            public List<T7ScriptObject.ScriptDetour> Detours = new List<T7ScriptObject.ScriptDetour>();
+
+            public byte[] PackDetours()
+            {
+                List<byte> data = new List<byte>();
+                foreach(var detour in Detours)
+                {
+                    data.AddRange(detour.Serialize());
+                }
+                return data.ToArray();
+            }
+        }
+
         private int InjectT7(string replacePath, byte[] buffer)
         {
             NoExcept(FreeT7Script);
+            GSICInfo gsi = null;
             if (BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
             {
-                return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
+                string preamble = Encoding.ASCII.GetString(buffer.Take(4).ToArray());
+                if(preamble != "GSIC")
+                {
+                    return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
+                }
+                using(MemoryStream ms = new MemoryStream(buffer))
+                using (BinaryReader reader = new BinaryReader(ms))
+                {
+                    T7ScriptObject.GSIFields currentField = T7ScriptObject.GSIFields.Detours;
+                    reader.BaseStream.Position += 4;
+                    gsi = new GSICInfo();
+                    for(int numFields = reader.ReadInt32(); numFields > 0; numFields--)
+                    {
+                        currentField = (T7ScriptObject.GSIFields)reader.ReadInt32();
+                        switch(currentField)
+                        {
+                            case T7ScriptObject.GSIFields.Detours:
+                                int numdetours = reader.ReadInt32();
+                                for(int j = 0; j < numdetours; j++)
+                                {
+                                    T7ScriptObject.ScriptDetour detour = new T7ScriptObject.ScriptDetour();
+                                    detour.Deserialize(reader);
+                                    gsi.Detours.Add(detour);
+                                }
+                                break;
+                        }
+                    }
+                    buffer = buffer.Skip((int)reader.BaseStream.Position).ToArray();
+                }
+                if(BitConverter.ToInt64(buffer, 0) != 0x1C000A0D43534780)
+                {
+                    return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
+                }
             }
             ProcessEx bo3 = "blackops3";
             if (bo3 == null)
@@ -730,6 +778,33 @@ namespace DebugCompiler
                         // cache the struct data for uninjection
                         InjectedScript = entry;
                         InjectedBuffSize = buffer.Length;
+
+                        try
+                        {
+                            string exeFilePath = Assembly.GetExecutingAssembly().Location;
+                            var result = bo3.Call<long>(bo3.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll"));
+                            bo3.Refresh();
+                            if (result == 0)
+                            {
+                                return 4;
+                            }
+
+                            bo3.Call<VOID>(bo3.GetProcAddress(@"t7cinternal.dll", @"RemoveDetours"));
+                            if (gsi != null)
+                            {
+                                // detours
+                                if (gsi.Detours.Count > 0)
+                                {
+                                    bo3.Call<VOID>(bo3.GetProcAddress(@"t7cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)entry.lpBuffer);
+                                }
+                            }
+                        }
+                        catch(Exception e)
+                        {
+                            Console.WriteLine(e.ToString());
+                            return 3;
+                        }
+
                         return 0;
                     }
                 }
@@ -881,6 +956,10 @@ namespace DebugCompiler
             // Patch spt struct
             InjectedScript.lpBuffer = llpOriginalBuffer;
             bo3.SetStruct(llpModifiedSPTStruct, InjectedScript);
+
+            // Reset hooked detours
+            bo3.Call<VOID>(bo3.GetProcAddress(@"t7cinternal.dll", @"RemoveDetours"));
+
             bo3.CloseHandle();
         }
 

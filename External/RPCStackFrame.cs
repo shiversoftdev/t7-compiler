@@ -47,12 +47,12 @@ namespace System
 
         public void PushArgument(dynamic obj)
         {
-            if (obj != null && !CanSerializeType(obj.GetType()))
+            if ((obj.GetType().IsValueType || (object)obj != null) && !CanSerializeType(obj.GetType()))
             {
                 throw new InvalidCastException(DSTR(DSTR_SERIALIZE_TYPE_INVALID, obj.GetType().Name));
             }
 
-            if (obj == null)
+            if (!obj.GetType().IsValueType && obj == null)
             {
                 Arguments.Add(new RPCArgument(new byte[PointerSize]));
                 return;

@@ -114,6 +114,7 @@ namespace TreyarchCompiler.Games
             { 
                 data.CompiledScript = Script.Serialize();
                 data.HashMap = Script.GetHashMap();
+                data.RequiresGSI = (Game == Enums.Games.T7) ? T7().UsingGSI : false;
             } catch (Exception ex) { data.Error = ex.ToString(); }
             var finalticks = DateTime.Now.Ticks;
 
@@ -195,6 +196,40 @@ namespace TreyarchCompiler.Games
                                 Flags = flags
                             };
 
+                            break;
+
+                        case "functiondetour":
+                            var detour = directive.ChildNodes[0];
+                            var local_detour_target = "detour_" + Guid.NewGuid().ToString().ToLower();
+                            var detour_parameters = detour.ChildNodes[detour.ChildNodes.FindIndex(e => e.Term.Name == "parameters")].ChildNodes[0].ChildNodes;
+                            functionTree.Add(local_detour_target, detour);
+                            FunctionMetadata[local_detour_target] = new ScriptFunctionMetaData()
+                            {
+                                FunctionHash = Script.ScriptHash(local_detour_target),
+                                NamespaceHash = ScriptNamespace,
+                                FunctionName = local_detour_target,
+                                NamespaceName = "ilcustom",
+                                NumParams = (byte)detour_parameters.Count,
+                                Flags = 0, // detours are not private
+                                IsDetour = true
+                            };
+
+                            var detourPathIndex = detour.ChildNodes.FindIndex(e => e.Term.Name == "detourPath");
+                            string detourFunc = detour.ChildNodes[detourPathIndex + 1].Token.ValueString.ToLower();
+                            string detourNamespace = "";
+                            string detourScript = null;
+                            if(detour.ChildNodes[detourPathIndex].ChildNodes[0].Term.Name == "gscForFunction")
+                            {
+                                detourNamespace = detour.ChildNodes[detourPathIndex].ChildNodes[0].ChildNodes[0].Token.ValueString.ToLower();
+                            }
+                            else
+                            {
+                                detourNamespace = detour.ChildNodes[detourPathIndex].ChildNodes[0].Token.ValueString.ToLower();
+                                detourScript = detour.ChildNodes[detourPathIndex].ChildNodes[2].Token.ValueString.ToLower() + detour.ChildNodes[detourPathIndex].ChildNodes[3].Token.ValueString.ToLower();
+                                detourScript = detourScript.Replace("\\", "/");
+                            }
+
+                            T7().AddScriptDetour(local_detour_target, detourNamespace, detourFunc, detourScript);
                             break;
                     }
                 }
@@ -728,16 +763,27 @@ namespace TreyarchCompiler.Games
             //All calls need parameters!
             CurrentFunction.AddOp(DynOp(ScriptOpCode.PreScriptCall));
 
-            bool DoProtect = EnableStatPtrProtect && !HasContext(Context, ScriptContext.IsCustomInject) && Game == Enums.Games.T7 && T7().IsStatProtected(fhash);
-
             parameters.Reverse();
             foreach (ParseTreeNode parameter in parameters)
             {
                 yield return new QOperand(CurrentFunction, parameter, 0);
             }
 
-            if (Game == Enums.Games.T7 && T7().Imports.IsBuiltinImport(fhash))
+            uint t7_ns = ScriptNamespace; //newer games automatically figure out you want a builtin if its the same namespace
+
+            if (Game != Enums.Games.T6 && NS_String != null)
+                t7_ns = Script.ScriptHash(NS_String);
+
+            bool isCustomBuiltin = Script.ScriptHash("compiler") == t7_ns;
+            int paramCount = parameters.Count;
+
+            if (isCustomBuiltin)
+            {
                 (CurrentFunction as T7ScriptExport).AddGetNumber((int)fhash);
+                t7_ns = ScriptNamespace;
+                fhash = Script.ScriptHash("isprofilebuild");
+                paramCount++;
+            }
 
             if (HasContext(Context, ScriptContext.HasCaller))
                 yield return new QOperand(CurrentFunction, Caller, 0);
@@ -746,15 +792,10 @@ namespace TreyarchCompiler.Games
             {
                 yield return new QOperand(CurrentFunction, CallFrame.ChildNodes[0].ChildNodes[0], 0);
 
-                CurrentFunction.AddCallPtr(Context, (byte)parameters.Count);
+                CurrentFunction.AddCallPtr(Context, (byte)paramCount);
             }
             else
             {
-                uint t7_ns = ScriptNamespace; //newer games automatically figure out you want a builtin if its the same namespace
-                
-                if (Game != Enums.Games.T6 && NS_String != null)
-                    t7_ns = Script.ScriptHash(NS_String);
-
                 byte Flags = 0;
 
                 if (HasContext(Context, ScriptContext.Threaded))
@@ -775,7 +816,7 @@ namespace TreyarchCompiler.Games
                 dynamic ImportRef = null;
 
                 if(Game != Enums.Games.T6)
-                    ImportRef = Script.Imports.AddImport(fhash, t7_ns, (byte)parameters.Count, Flags);
+                    ImportRef = Script.Imports.AddImport(fhash, t7_ns, (byte)paramCount, Flags);
 
                 CurrentFunction.AddCall(ImportRef, Context);
             }
@@ -1362,6 +1403,7 @@ namespace TreyarchCompiler.Games
             public string NamespaceName;
             public byte NumParams;
             public byte Flags;
+            public bool IsDetour;
         }
 
         private class QOperand

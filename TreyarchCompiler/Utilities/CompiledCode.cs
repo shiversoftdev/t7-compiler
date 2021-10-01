@@ -11,6 +11,7 @@ namespace TreyarchCompiler.Utilities
         public Dictionary<int, byte[]> MaskData;
         public byte[] OpcodeMap;
         public byte[] Dll;
+        public bool RequiresGSI;
         public Dictionary<uint, string> HashMap;
 
         internal CompiledCode()

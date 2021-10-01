@@ -179,8 +179,20 @@ namespace t7c_installer
                 System.Threading.Thread.Sleep(100);
             }
 
+            foreach (var proc in Process.GetProcessesByName("blackops3"))
+            {
+                proc.Kill();
+                System.Threading.Thread.Sleep(100);
+            }
+
+            foreach (var proc in Process.GetProcessesByName("blackops4"))
+            {
+                proc.Kill();
+                System.Threading.Thread.Sleep(100);
+            }
+
             // purge old installation
-            if(Directory.Exists(Path.Combine(InstallRoot, "t7compiler")))
+            if (Directory.Exists(Path.Combine(InstallRoot, "t7compiler")))
             {
                 Directory.Delete(Path.Combine(InstallRoot, "t7compiler"), true);
             }
