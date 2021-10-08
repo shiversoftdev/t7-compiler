@@ -263,6 +263,7 @@ namespace T7CompilerLib.OpCodes
         EvalSelfFieldVariableRef,
         SuperEqual,
         SuperNotEqual,
+        LazyGetFunction,
         Count,
 
         Invalid = 0xFF,

@@ -195,7 +195,8 @@ namespace T7CompilerLib
             byte[] DataBuffer = new byte[0];
             Header.Commit(ref DataBuffer, ref __header__);
             Header.CommitHeader(ref DataBuffer, ScriptMetadata.Magic);
-            if(UsingGSI)
+            Strings.FixupLazyFunctions(DataBuffer);
+            if (UsingGSI)
             {
                 EmitGSIHeader(ref DataBuffer);
             }
@@ -521,6 +522,11 @@ namespace T7CompilerLib
             {
                 if (ReverseOps.TryGetValue(indexer, out ushort val))
                     return val;
+
+                if(indexer == ScriptOpCode.LazyGetFunction)
+                {
+                    return 0x16; // hardcoded ig
+                }
 #if DEBUG
                 Console.WriteLine($"Platform is missing opcode: {indexer.ToString()}");
 #endif
@@ -532,6 +538,10 @@ namespace T7CompilerLib
         {
             get
             {
+                if(indexer == 0x16)
+                {
+                    return ScriptOpCode.LazyGetFunction;
+                }
                 return (ScriptOpCode)MetaRef.__ops[indexer];
             }
             set

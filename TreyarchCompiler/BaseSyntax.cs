@@ -83,6 +83,7 @@ namespace TreyarchCompiler
         protected NonTerminal baseCallPointer { private set; get; }
         protected NonTerminal gscForFunction { private set; get; }
         protected NonTerminal getFunction { private set; get; }
+        protected NonTerminal lazyFunction { private set; get; }
         protected NonTerminal callParameters { private set; get; }
         protected NonTerminal parenCallParameters { private set; get; }
         #endregion
@@ -181,7 +182,7 @@ namespace TreyarchCompiler
 
             #region Operators
             //Punctuation
-            MarkPunctuation("(", ")", "{", "}", "[", "]", ",", ".", ";", "::", "[[", "]]", "#define", "#include", "#using_animtree", "->");
+            MarkPunctuation("(", ")", "{", "}", "[", "]", ",", ".", ";", "::", "[[", "]]", "@", "#define", "#include", "#using_animtree", "->");
 
             //Operators
             RegisterOperators(1, "||");
@@ -208,7 +209,7 @@ namespace TreyarchCompiler
                             ToTerm("#using") + IncludeIdentifier + ";";
 
             //Globals
-            globals.Rule = ToTerm("#define") + Identifier + equalOperator + new NonTerminal("expr", (NumberLiteral | vector | verbatimString | iString | StringLiteral | booleanExpression | newArray)) + ";";
+            globals.Rule = ToTerm("#define") + Identifier + equalOperator + new NonTerminal("expr", (NumberLiteral | vector | iString | StringLiteral | booleanExpression | newArray)) + ";";
             
             //Functions
             functions.Rule = Identifier + parameters + block |
@@ -249,8 +250,8 @@ namespace TreyarchCompiler
             #region Expressions
             //Master Expresssion Rules
             expr.Rule = parenExpr | mathExpr | animRef | animTree | boolNot;
-            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | verbatimString | size | iString | hashedString | vector;
-            variableExpr.Rule = parenVariableExpr | directAccess | call | Identifier | getFunction | array;
+            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | size | iString | hashedString | vector;
+            variableExpr.Rule = parenVariableExpr | directAccess | call | Identifier | getFunction | lazyFunction | array;
 
             //Parenthesis
             parenExpr.Rule = "(" + expr + ")";
@@ -277,6 +278,7 @@ namespace TreyarchCompiler
             //Script Reference Components
             gscForFunction.Rule = Identifier + "::";
             getFunction.Rule = ToTerm("::") + new NonTerminal("expr", Identifier) | gscForFunction + variableExpr;
+            lazyFunction.Rule = ToTerm("@") + Identifier + "<" + Identifier + ".gsc" + ">" + "::" + Identifier | ToTerm("@") + Identifier + "<" + Identifier + ".csc" + ">" + "::" + Identifier;
 
             //Base Call Rules
             baseCall.Rule = gscForFunction + Identifier + parenCallParameters | Identifier + parenCallParameters;
@@ -421,6 +423,7 @@ namespace TreyarchCompiler
             callParameters = new NonTerminal("callParameters");
             baseCallPointer = new NonTerminal("baseCallPointer");
             getFunction = new NonTerminal("getFunction");
+            lazyFunction = new NonTerminal("lazyFunction");
             array = new NonTerminal("array");
             size = new NonTerminal("size");
             boolNot = new NonTerminal("boolNot");

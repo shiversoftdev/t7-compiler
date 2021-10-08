@@ -162,12 +162,14 @@
     <ClInclude Include="builtins.h" />
     <ClInclude Include="detours.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="LazyLink.h" />
     <ClInclude Include="offsets.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="builtins.cpp" />
     <ClCompile Include="detours.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="LazyLink.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

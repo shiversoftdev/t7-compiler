@@ -588,6 +588,16 @@ namespace T7CompilerLib.ScriptComponents
         }
 
         /// <summary>
+        /// Add a lazy get function reference
+        /// </summary>
+        /// <param name="str"></param>
+        /// <returns></returns>
+        public T7OpCode AddLazyGetFunction(T7StringTableEntry script, uint ns, uint func)
+        {
+            return __addop_internal(new T7OP_LazyGetFunction(ns, func, script));
+        }
+
+        /// <summary>
         /// Try to emit a local variable. Will throw an ArgumentException if the local cant be resolved
         /// </summary>
         /// <param name="Identifier">Lowercase version of the identifier. If not, we will run into ref issues</param>

@@ -471,6 +471,10 @@ namespace TreyarchCompiler.Games
                         EmitFunctionPtr(CurrentFunction, node, 0, HasContext(Context, ScriptContext.IsCustomInject));
                         break;
 
+                    case "lazyFunction":
+                        EmitLazyFunctionPtr(CurrentFunction, node, 0, HasContext(Context, ScriptContext.IsCustomInject));
+                        break;
+
                     case "vector":
                         CurrentOp.SetOperands = EmitVector(CurrentFunction, node, Context);
                         
@@ -491,6 +495,14 @@ namespace TreyarchCompiler.Games
             yield return new QOperand(CurrentFunction, node.ChildNodes[1], 0);
             yield return new QOperand(CurrentFunction, node.ChildNodes[0], 0);
             CurrentFunction.AddOp(DynOp(ScriptOpCode.Vector));
+        }
+
+        private void EmitLazyFunctionPtr(dynamic CurrentFunction, ParseTreeNode node, byte Numparams, bool NoRefReplace)
+        {
+            var ns = node.ChildNodes[0].Token.ValueString;
+            var func = node.ChildNodes[node.ChildNodes.Count - 1].Token.ValueString;
+            var script = node.ChildNodes[2].Token.ValueString.ToLower().Replace("\\", "/") + node.ChildNodes[3].Token.ValueString.ToLower();
+            CurrentFunction.AddLazyGetFunction(T7().Strings.AddString(script), T7().ScriptHash(ns), T7().ScriptHash(func));
         }
 
         private void EmitFunctionPtr(dynamic CurrentFunction, ParseTreeNode node, byte Numparams, bool NoRefReplace)

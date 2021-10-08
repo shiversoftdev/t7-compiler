@@ -42,7 +42,6 @@ namespace T7CompilerLib.ScriptComponents
             byte[] bytes = new byte[Size()];
             EndianWriter writer = new EndianWriter(new MemoryStream(bytes), Endianess);
             
-            uint CurrentString = 0;
             uint Base = GetBaseAddress();
 
             foreach (string s in TableEntries.Keys)
@@ -53,6 +52,19 @@ namespace T7CompilerLib.ScriptComponents
 
             writer.Dispose();
             return bytes;
+        }
+        
+        public void FixupLazyFunctions(byte[] data)
+        {
+            foreach (string s in TableEntries.Keys)
+            {
+                foreach(var lazy in TableEntries[s].LazyReferences)
+                {
+                    // emit the offset from the fs pointer so that runtime lookup of the filepath is instant
+                    int location = (int)TableEntries[s].EmissionLocation - (int)lazy.GetCommitDataAddress();
+                    location.GetBytes(Endianess).CopyTo(data, lazy.GetCommitDataAddress().AlignValue(0x4) + 0x8);
+                }
+            }
         }
 
         public override uint Size()
@@ -166,6 +178,7 @@ namespace T7CompilerLib.ScriptComponents
     {
         internal T7StringTableEntry() { }
         public HashSet<T7OP_GetString> References = new HashSet<T7OP_GetString>();
+        public HashSet<T7OP_LazyGetFunction> LazyReferences = new HashSet<T7OP_LazyGetFunction>();
         public uint EmissionLocation;
         public string Value;
 

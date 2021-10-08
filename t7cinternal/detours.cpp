@@ -116,23 +116,6 @@ void ScriptDetours::InstallHooks()
 	VTableReplace(0x12CE3A0, VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
 }
 
-struct __t7export
-{
-	INT32 discardCRC32;
-	INT32 bytecodeOffset;
-	INT32 funcName;
-	INT32 funcNS;
-	INT32 discardParamsFlagsPad;
-};
-
-struct SPTEntry
-{
-	char* Name;
-	INT32 buffSize;
-	INT32 flags;
-	char* Buffer;
-};
-
 INT64 ScriptDetours::FindScriptParsetree(char* name)
 {
 	SPTEntry* currentSpt = (SPTEntry*)*(INT64*)OFFSET(0x9409AB0);

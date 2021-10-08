@@ -12,6 +12,23 @@ struct ScriptDetour
 	INT32 FixupSize;
 };
 
+struct __t7export
+{
+	INT32 discardCRC32;
+	INT32 bytecodeOffset;
+	INT32 funcName;
+	INT32 funcNS;
+	INT32 discardParamsFlagsPad;
+};
+
+struct SPTEntry
+{
+	char* Name;
+	INT32 buffSize;
+	INT32 flags;
+	char* Buffer;
+};
+
 typedef void(__fastcall* tVM_Opcode)(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate);
 typedef INT64(__fastcall* tScr_GetFunction)(INT32 canonID, INT32* type, INT32* min_args, INT32* max_args);
 typedef INT64(__fastcall* tScr_GetMethod)(INT32 canonID, INT32* type, INT32* min_args, INT32* max_args);
@@ -26,6 +43,7 @@ public:
 	static std::vector<ScriptDetour*> RegisteredDetours;
 	static std::unordered_map<INT64, ScriptDetour*> LinkedDetours;
 	static std::unordered_map<INT64*, INT64> AppliedFixups;
+	static INT64 FindScriptParsetree(char* name);
 	static bool DetoursLinked;
 	static bool DetoursReset;
 	static bool DetoursEnabled;
@@ -34,7 +52,6 @@ public:
 	static void LinkDetours();
 
 private:
-	static INT64 FindScriptParsetree(char* name);
 	static void VTableReplace(INT32 sub_offset, tVM_Opcode ReplaceFunc, tVM_Opcode* OutOld);
 	static void VM_OP_GetFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate);
 	static void VM_OP_GetAPIFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate);

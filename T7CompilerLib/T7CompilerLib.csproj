@@ -80,6 +80,7 @@
     <Compile Include="OpCodes\T7OP_GetNumericValue.cs" />
     <Compile Include="OpCodes\T7OP_GetString.cs" />
     <Compile Include="OpCodes\T7OP_Jump.cs" />
+    <Compile Include="OpCodes\T7OP_LazyGetFunction.cs" />
     <Compile Include="OpCodes\T7OP_Return.cs" />
     <Compile Include="OpCodes\T7OP_SafeCreateLocalVariables.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
