@@ -6,4 +6,5 @@ Supports auto-importing feature for infinity loader projects
 # Credits
 Scobalula for his original decompiler\
 SyGnUs for his CoD knowledge\
-Original Black Ops 2 Compiler crew for their research
+Original Black Ops 2 Compiler crew for their research\
+Scrappy for livesplit builtin
