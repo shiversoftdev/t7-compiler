@@ -9,10 +9,27 @@ tScrVm_GetInt GSCBuiltins::ScrVm_GetInt;
 // add all custom builtins here
 void GSCBuiltins::Generate()
 {
-	// make sure your builtins are lowercase
-	AddCustomFunction("nprintln", GSCBuiltins::GScr_nprintln);
+	// Compiler related functions //
+
+	// compiler::detour()
+	// Link and execute detours included in loaded scripts.
 	AddCustomFunction("detour", GSCBuiltins::GScr_detour);
+	
+	// compiler::relinkdetours()
+	// Re-link any detours that did not get linked previously due to script load order, etc.
 	AddCustomFunction("relinkdetours", GSCBuiltins::GScr_relinkDetours);
+
+	// General purpose //
+	
+	// compiler::livesplit(str_split_name);
+	// Send a split signal to livesplit through named pipe access.
+	// <str_split_name>: Name of the split to send to livesplit
+	AddCustomFunction("livesplit", GSCBuiltins::GScr_livesplit);
+
+	// compiler::nprintln(str_message)
+	// Prints a line of text to an open, untitled notepad window.
+	// <str_message>: Text to print
+	AddCustomFunction("nprintln", GSCBuiltins::GScr_nprintln);
 }
 
 void GSCBuiltins::Init()
@@ -72,6 +89,24 @@ void GSCBuiltins::GScr_relinkDetours(int scriptInst)
 		return;
 	}
 	ScriptDetours::LinkDetours();
+}
+
+void GSCBuiltins::GScr_livesplit(int scriptInst)
+{
+	if (scriptInst)
+	{
+		return;
+	}
+
+	HANDLE livesplit = CreateFile("\\\\.\\pipe\\LiveSplit", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	if (!livesplit)
+	{
+		return;
+	}
+
+	const char* message = ScrVm_GetString(0, 1);
+	WriteFile(livesplit, message, strlen(message), nullptr, NULL);
+	CloseHandle(livesplit);
 }
 
 
