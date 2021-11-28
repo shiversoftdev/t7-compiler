@@ -112,6 +112,10 @@
       <Project>{7527fb74-e8ac-43f1-9e48-e9d4d2b5d5b3}</Project>
       <Name>T7CompilerLib</Name>
     </ProjectReference>
+    <ProjectReference Include="..\T8CompilerLib\T89CompilerLib.csproj">
+      <Project>{C630E36A-4A4C-4F14-AA8B-AE80F592DAAD}</Project>
+      <Name>T89CompilerLib</Name>
+    </ProjectReference>
     <ProjectReference Include="..\TreyarchCompiler\TreyarchCompiler.csproj">
       <Project>{2cdefd40-3952-44a7-b69e-711fbacac869}</Project>
       <Name>TreyarchCompiler</Name>
@@ -119,6 +123,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy /y "$(SolutionDir)$(PlatformName)\Release\t7cinternal.dll" "$(TargetDir)"</PostBuildEvent>
+    <PostBuildEvent>xcopy /y "$(SolutionDir)$(PlatformName)\Release\t7cinternal.dll" "$(TargetDir)"
+xcopy /y "$(SolutionDir)$(PlatformName)\Release\t8cinternal.dll" "$(TargetDir)"</PostBuildEvent>
   </PropertyGroup>
 </Project>

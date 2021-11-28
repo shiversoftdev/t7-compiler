@@ -96,7 +96,8 @@ namespace T7CompilerLib.OpCodes
             CommitAddress = BaseAddress;
 
             //Console.WriteLine($"[OP_{Code.ToString()}] at 0x{CommitAddress.ToString("X")}, Size = 0x{GetSize().ToString("X")}");
-            
+            header.OpcodeEmissions.Add(CommitAddress);
+
             data.AddRange(Serialize(EmissionTable.GetOpcodeValue(Code)));
 
             BaseAddress += GetSize();

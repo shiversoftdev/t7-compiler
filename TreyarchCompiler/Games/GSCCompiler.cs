@@ -115,6 +115,7 @@ namespace TreyarchCompiler.Games
                 data.CompiledScript = Script.Serialize();
                 data.HashMap = Script.GetHashMap();
                 data.RequiresGSI = (Game == Enums.Games.T7) ? T7().UsingGSI : false;
+                data.OpcodeEmissions = T7().Header.OpcodeEmissions;
             } catch (Exception ex) { data.Error = ex.ToString(); }
             var finalticks = DateTime.Now.Ticks;
 

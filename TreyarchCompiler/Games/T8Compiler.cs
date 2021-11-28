@@ -138,6 +138,47 @@ namespace TreyarchCompiler.Games
                             Flags = flags
                         };
                         break;
+
+                    case "functiondetour":
+                        var detour = directive.ChildNodes[0];
+                        var local_detour_target = "detour_" + Guid.NewGuid().ToString().ToLower();
+                        var detour_parameters = detour.ChildNodes[detour.ChildNodes.FindIndex(e => e.Term.Name == "parameters")].ChildNodes[0].ChildNodes;
+                        functionTree.Add(local_detour_target, detour);
+                        FunctionMetadata[local_detour_target] = new ScriptFunctionMetaData()
+                        {
+                            FunctionHash = Script.T8Hash(local_detour_target),
+                            NamespaceHash = ScriptNamespace,
+                            FunctionName = local_detour_target,
+                            NamespaceName = "ilcustom",
+                            NumParams = (byte)detour_parameters.Count,
+                            Flags = 0, // detours are not private
+                            IsDetour = true
+                        };
+
+                        var detourPathIndex = detour.ChildNodes.FindIndex(e => e.Term.Name == "detourPath");
+                        string detourFunc = detour.ChildNodes[detourPathIndex + 1].Token.ValueString.ToLower();
+                        string detourNamespace = "";
+                        string detourScript = null;
+                        if (detour.ChildNodes[detourPathIndex].ChildNodes[0].Term.Name == "gscForFunction")
+                        {
+                            detourNamespace = detour.ChildNodes[detourPathIndex].ChildNodes[0].ChildNodes[0].Token.ValueString.ToLower();
+                        }
+                        else
+                        {
+                            detourNamespace = detour.ChildNodes[detourPathIndex].ChildNodes[0].Token.ValueString.ToLower();
+                            detourScript = detour.ChildNodes[detourPathIndex].ChildNodes[2].Token.ValueString.ToLower();
+
+                            string exten = detour.ChildNodes[detourPathIndex].ChildNodes[3].Token.ValueString.ToLower();
+                            if(exten.Contains("."))
+                            {
+                                detourScript += exten;
+                            }
+
+                            detourScript = detourScript.Replace("\\", "/");
+                        }
+
+                        Script.AddScriptDetour(local_detour_target, detourNamespace, detourFunc, Script.T8s64Hash(detourScript));
+                        break;
                 }
             }
             //Iterate over all function declarations
@@ -648,6 +689,7 @@ namespace TreyarchCompiler.Games
             if (BaseCall.ChildNodes.Count == 3) NS_String = BaseCall.ChildNodes[0].FindTokenAndGetText();
             ParseTreeNode CallParameters = BaseCall.ChildNodes[BaseCall.ChildNodes.Count - 1].ChildNodes[0];
             ParseTreeNodeList parameters = CallParameters.ChildNodes;
+
             //Our context should update if we have a prefix
             if (CallPrefix != null)
             {
@@ -658,6 +700,7 @@ namespace TreyarchCompiler.Games
                 }
                 if (CallPrefix.ChildNodes[CallPrefix.ChildNodes.Count - 1].Term.Name == "thread") Context |= (uint)ScriptContext.Threaded;
             }
+
             //Update the context if we are using a call pointer term
             if (CallFrame.ChildNodes[0].Term.Name == CALL_PTR_TERMNAME) Context |= (uint)ScriptContext.IsPointer;
             if (!HasContext(Context, ScriptContext.IsPointer) && !HasContext(Context, ScriptContext.Threaded) && NS_String == null)
@@ -686,19 +729,41 @@ namespace TreyarchCompiler.Games
                     throw new NotImplementedException($"Call to builtin method '{BaseCall.ChildNodes[0].Token.ValueString}' has not been handled!");
                 }
             }
+
             CurrentFunction.AddOp(ScriptOpCode.PreScriptCall);
+
             parameters.Reverse();
-            foreach (ParseTreeNode parameter in parameters) yield return new QOperand(CurrentFunction, parameter, 0);
-            if (HasContext(Context, ScriptContext.HasCaller)) yield return new QOperand(CurrentFunction, Caller, 0);
+            foreach (ParseTreeNode parameter in parameters)
+            {
+                yield return new QOperand(CurrentFunction, parameter, 0);
+            }
+
+            uint t8_ns = NS_String != null ? Script.T8Hash(NS_String) : ScriptNamespace;
+            bool isCustomBuiltin = Script.T8Hash("compiler") == t8_ns;
+            int paramCount = parameters.Count;
+
+            if (isCustomBuiltin)
+            {
+                CurrentFunction.AddGetNumber((int)fhash);
+                t8_ns = ScriptNamespace;
+                fhash = Script.T8Hash("isprofilebuild");
+                paramCount++;
+            }
+
+            if (HasContext(Context, ScriptContext.HasCaller))
+            {
+                yield return new QOperand(CurrentFunction, Caller, 0);
+            }
+
             if (HasContext(Context, ScriptContext.IsPointer))
             {
                 yield return new QOperand(CurrentFunction, CallFrame.ChildNodes[0].ChildNodes[0], 0);
-                CurrentFunction.AddCallPtr(Context, (byte)parameters.Count);
+                CurrentFunction.AddCallPtr(Context, (byte)paramCount);
             }
             else
             {
                 byte Flags = 0;
-                uint t8_ns = NS_String != null ? Script.T8Hash(NS_String) : ScriptNamespace;
+                
                 if (t8_ns == ScriptNamespace) Flags |= (byte)ImportFlags.NeedsResolver;
 
                 if(HasContext(Context, ScriptContext.HasCaller))
@@ -723,7 +788,7 @@ namespace TreyarchCompiler.Games
                         Flags |= 2; //script function call
                     }
                 }                
-                var import = Script.Imports.AddImport(fhash, t8_ns, (byte)parameters.Count, Flags);
+                var import = Script.Imports.AddImport(fhash, t8_ns, (byte)paramCount, Flags);
                 CurrentFunction.AddCall(import, Context);
             }
             if (HasContext(Context, ScriptContext.DecTop)) CurrentFunction.AddOp(ScriptOpCode.DecTop);
@@ -962,6 +1027,8 @@ namespace TreyarchCompiler.Games
             public string NamespaceName;
             public byte NumParams;
             public byte Flags;
+
+            public bool IsDetour;
         }
 
         private class QOperand

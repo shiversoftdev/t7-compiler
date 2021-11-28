@@ -10,6 +10,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DebugCompiler", "DebugCompiler\DebugCompiler.csproj", "{A45BC8F5-CB13-4006-9EAE-A07CA7CC091C}"
 	ProjectSection(ProjectDependencies) = postProject
 		{093DADA4-43D5-4327-8686-052E8966B587} = {093DADA4-43D5-4327-8686-052E8966B587}
+		{463A5FF3-DAF8-4379-90CC-6A149196D849} = {463A5FF3-DAF8-4379-90CC-6A149196D849}
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ThirdParty", "ThirdParty", "{CFC574D6-E4DA-4DBF-A032-3198A8146240}"
@@ -27,6 +28,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "T89CompilerLib", "T8CompilerLib\T89CompilerLib.csproj", "{C630E36A-4A4C-4F14-AA8B-AE80F592DAAD}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "t7cinternal", "t7cinternal\t7cinternal.vcxproj", "{093DADA4-43D5-4327-8686-052E8966B587}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "t8cinternal", "t8cinternal\t8cinternal.vcxproj", "{463A5FF3-DAF8-4379-90CC-6A149196D849}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -165,6 +168,22 @@ Global
 		{093DADA4-43D5-4327-8686-052E8966B587}.Release|x64.Build.0 = Release|x64
 		{093DADA4-43D5-4327-8686-052E8966B587}.Release|x86.ActiveCfg = Release|Win32
 		{093DADA4-43D5-4327-8686-052E8966B587}.Release|x86.Build.0 = Release|Win32
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Debug|x64.ActiveCfg = Release|x64
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Debug|x64.Build.0 = Release|x64
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Debug|x86.ActiveCfg = Debug|Win32
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Debug|x86.Build.0 = Debug|Win32
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Development|Any CPU.ActiveCfg = Release|x64
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Development|Any CPU.Build.0 = Release|x64
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Development|x64.ActiveCfg = Debug|x64
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Development|x64.Build.0 = Debug|x64
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Development|x86.ActiveCfg = Debug|Win32
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Development|x86.Build.0 = Debug|Win32
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Release|Any CPU.ActiveCfg = Release|Win32
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Release|x64.ActiveCfg = Release|x64
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Release|x64.Build.0 = Release|x64
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Release|x86.ActiveCfg = Release|Win32
+		{463A5FF3-DAF8-4379-90CC-6A149196D849}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

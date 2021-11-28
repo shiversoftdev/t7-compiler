@@ -225,6 +225,76 @@ namespace T89CompilerLib
 
             return hash;
         }
+
+        private Dictionary<string, ScriptDetour> Detours = new Dictionary<string, ScriptDetour>();
+
+        public bool UsingGSI { private set; get; }
+
+        /// <summary>
+        /// Adds a script detour
+        /// </summary>
+        /// <param name="fixupNameHash">Hash of the local export to replace remote exports with</param>
+        /// <param name="replaceNamespaceHash">Name of the remote export's namespace</param>
+        /// <param name="replaceFunctionHash">Name of the remote export's function name</param>
+        /// <param name="replaceScriptPath">Name of the remote export's script or null if it is a builtin</param>
+        public void AddScriptDetour(string fixupName, string replaceNamespace, string replaceFunction, ulong replaceScriptPath)
+        {
+            var detour = new ScriptDetour()
+            {
+                FixupName = T8Hash(fixupName),
+                ReplaceNamespace = T8Hash(replaceNamespace),
+                ReplaceFunction = T8Hash(replaceFunction),
+                ReplaceScript = replaceScriptPath
+            };
+            if (Detours.ContainsKey(detour.ToString()))
+            {
+                throw new DuplicateNameException($"Detour for {replaceNamespace}<script_{replaceScriptPath:X}>::{replaceFunction} has been defined more than once.");
+            }
+            Detours[detour.ToString()] = detour;
+            UsingGSI = true;
+        }
+
+        public class ScriptDetour
+        {
+            private const int DetourNameMaxLength = 256 - 1 - (5 * 4);
+            public uint FixupName;
+            public uint ReplaceNamespace;
+            public uint ReplaceFunction;
+            public uint FixupOffset;
+            public uint FixupSize;
+            public ulong ReplaceScript;
+
+            public override string ToString()
+            {
+                return $"{ReplaceNamespace:X}:{ReplaceFunction}:script_{ReplaceScript:X}";
+            }
+
+            public byte[] Serialize()
+            {
+                List<byte> toReturn = new List<byte>();
+                toReturn.AddRange(BitConverter.GetBytes(FixupName));
+                toReturn.AddRange(BitConverter.GetBytes(ReplaceNamespace));
+                toReturn.AddRange(BitConverter.GetBytes(ReplaceFunction));
+                toReturn.AddRange(BitConverter.GetBytes(FixupOffset));
+                toReturn.AddRange(BitConverter.GetBytes(FixupSize));
+
+                byte[] scriptPathBytes = new byte[DetourNameMaxLength + 1];
+                BitConverter.GetBytes(ReplaceScript).CopyTo(scriptPathBytes, 0);
+                toReturn.AddRange(scriptPathBytes);
+                return toReturn.ToArray();
+            }
+
+            public void Deserialize(BinaryReader reader)
+            {
+                FixupName = reader.ReadUInt32();
+                ReplaceNamespace = reader.ReadUInt32();
+                ReplaceFunction = reader.ReadUInt32();
+                FixupOffset = reader.ReadUInt32();
+                FixupSize = reader.ReadUInt32();
+                ReplaceScript = reader.ReadUInt64();
+                reader.ReadBytes(DetourNameMaxLength + 1 - 8);
+            }
+        }
     }
 
     /// <summary>

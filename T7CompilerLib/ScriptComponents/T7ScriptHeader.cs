@@ -21,6 +21,7 @@ namespace T7CompilerLib.ScriptComponents
 
         const byte HEADER_SIZE = 0x50;
 
+        public List<uint> OpcodeEmissions = new List<uint>();
         public ulong ScriptMagic { get; private set; }
 
         public uint SourceChecksum { get; internal set; }

@@ -18,6 +18,7 @@ using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Reflection;
 using System.Net;
+using T89CompilerLib;
 
 namespace DebugCompiler
 {
@@ -271,11 +272,11 @@ namespace DebugCompiler
             {
                 return Error("Failed to read the file specified");
             }
-
-            PointerEx injresult = InjectScript(args.Length > 1 ? args[1] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc"), buffer, game);
+            var path = args.Length > 2 ? args[2] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
+            PointerEx injresult = InjectScript(path, buffer, game);
             Console.WriteLine();
             Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
-            Console.WriteLine($"\t[{"scripts/shared/duplicaterender_mgr.gsc"}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
+            Console.WriteLine($"\t[{path}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
 
             if (!injresult)
             {
@@ -616,6 +617,16 @@ namespace DebugCompiler
                 hashes.AppendLine($"0x{kvp.Key:X}, {kvp.Value}");
             }
             File.WriteAllText(hpath, hashes.ToString());
+
+            if(code.OpcodeEmissions != null)
+            {
+                byte[] opsRaw = new byte[code.OpcodeEmissions.Count * 4];
+                for(int i = 0; i < code.OpcodeEmissions.Count; i++)
+                {
+                    BitConverter.GetBytes(code.OpcodeEmissions[i]).CopyTo(opsRaw, i * 4);
+                }
+                File.WriteAllBytes("compiled.omap", opsRaw);
+            }
      
             Success(cpath);
             Success("Script compiled. Press I to inject or anything else to continue");
@@ -694,6 +705,21 @@ namespace DebugCompiler
             {
                 List<byte> data = new List<byte>();
                 foreach(var detour in Detours)
+                {
+                    data.AddRange(detour.Serialize());
+                }
+                return data.ToArray();
+            }
+        }
+
+        private class GSICInfoT8
+        {
+            public List<T89ScriptObject.ScriptDetour> Detours = new List<T89ScriptObject.ScriptDetour>();
+
+            public byte[] PackDetours()
+            {
+                List<byte> data = new List<byte>();
+                foreach (var detour in Detours)
                 {
                     data.AddRange(detour.Serialize());
                 }
@@ -823,9 +849,42 @@ namespace DebugCompiler
         private int InjectT8(string replacePath, byte[] buffer)
         {
             NoExcept(FreeT8Script);
+            GSICInfoT8 gsi = null;
             if (BitConverter.ToInt64(buffer, 0) != 0x36000A0D43534780)
             {
-                return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops 4.");
+                string preamble = Encoding.ASCII.GetString(buffer.Take(4).ToArray());
+                if (preamble != "GSIC")
+                {
+                    return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
+                }
+                using (MemoryStream ms = new MemoryStream(buffer))
+                using (BinaryReader reader = new BinaryReader(ms))
+                {
+                    T7ScriptObject.GSIFields currentField = T7ScriptObject.GSIFields.Detours;
+                    reader.BaseStream.Position += 4;
+                    gsi = new GSICInfoT8();
+                    for (int numFields = reader.ReadInt32(); numFields > 0; numFields--)
+                    {
+                        currentField = (T7ScriptObject.GSIFields)reader.ReadInt32();
+                        switch (currentField)
+                        {
+                            case T7ScriptObject.GSIFields.Detours:
+                                int numdetours = reader.ReadInt32();
+                                for (int j = 0; j < numdetours; j++)
+                                {
+                                    T89ScriptObject.ScriptDetour detour = new T89ScriptObject.ScriptDetour();
+                                    detour.Deserialize(reader);
+                                    gsi.Detours.Add(detour);
+                                }
+                                break;
+                        }
+                    }
+                    buffer = buffer.Skip((int)reader.BaseStream.Position).ToArray();
+                }
+                if (BitConverter.ToInt64(buffer, 0) != 0x36000A0D43534780)
+                {
+                    return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops 4.");
+                }
             }
             ProcessEx bo4 = "blackops4";
             if (bo4 is null)
@@ -895,10 +954,37 @@ namespace DebugCompiler
                 InjectCache.Pid = bo4.BaseProcess.Id;
                 InjectCache.BufferSize = buffer.Length;
                 InjectCache.IsInjected = true;
+
+                try
+                {
+                    string exeFilePath = Assembly.GetExecutingAssembly().Location;
+                    var result = bo4.Call<long>(bo4.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t8cinternal.dll"));
+                    bo4.Refresh();
+
+                    if (result == 0)
+                    {
+                        return 4;
+                    }
+
+                    bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
+                    if (gsi != null)
+                    {
+                        // detours
+                        if (gsi.Detours.Count > 0)
+                        {
+                            bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)InjectCache.hBuffer);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.ToString());
+                    return 3;
+                }
             }
             catch
             {
-                return Error("Unknow error while injecting...");
+                return Error("Unknown error while injecting...");
             }
             finally
             {
@@ -935,6 +1021,9 @@ namespace DebugCompiler
 
                 // Patch spt struct
                 bo4.SetStruct(InjectCache.hTarget, InjectCache.Target);
+
+                // Reset hooked detours
+                bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
             }
             finally
             {
