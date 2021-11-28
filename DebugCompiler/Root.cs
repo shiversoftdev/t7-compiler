@@ -272,10 +272,10 @@ namespace DebugCompiler
                 return Error("Failed to read the file specified");
             }
 
-            PointerEx injresult = InjectScript(args.Length > 1 ? args[1] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc"), buffer, game);
+            PointerEx injresult = InjectScript(args.Length > 2 ? args[2] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc"), buffer, game);
             Console.WriteLine();
             Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
-            Console.WriteLine($"\t[{"scripts/shared/duplicaterender_mgr.gsc"}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
+            Console.WriteLine($"\t[{(args.Length > 2 ? args[2] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc"))}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
 
             if (!injresult)
             {
