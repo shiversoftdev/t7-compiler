@@ -966,15 +966,15 @@ namespace DebugCompiler
                         return 4;
                     }
 
-                    bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
-                    if (gsi != null)
-                    {
-                        // detours
-                        if (gsi.Detours.Count > 0)
-                        {
-                            bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)InjectCache.hBuffer);
-                        }
-                    }
+                    //bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
+                    //if (gsi != null)
+                    //{
+                    //    // detours
+                    //    if (gsi.Detours.Count > 0)
+                    //    {
+                    //        bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)InjectCache.hBuffer);
+                    //    }
+                    //}
                 }
                 catch (Exception e)
                 {
@@ -1023,7 +1023,7 @@ namespace DebugCompiler
                 bo4.SetStruct(InjectCache.hTarget, InjectCache.Target);
 
                 // Reset hooked detours
-                bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
+                // bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
             }
             finally
             {

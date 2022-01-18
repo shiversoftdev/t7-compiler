@@ -297,6 +297,7 @@ namespace T7CompilerLib.ScriptComponents
             { "game_ref", ScriptOpCode.GetGameRef },
             { "anim_ref", ScriptOpCode.GetAnimObject },
             { "world_ref", ScriptOpCode.GetWorldObject },
+            { "classes_ref", ScriptOpCode.GetClassesObject }
         };
 
         /// <summary>
