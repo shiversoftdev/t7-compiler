@@ -28,6 +28,8 @@ namespace TreyarchCompiler.Games
         /// This sucks. This is the best way since our terms are not static
         /// </summary>
         private const string CALL_PTR_TERMNAME = "baseCallPointer";
+        private const string DEFINED_CHECK_TEMP = ".?";
+        private const string UNDEFINED_COALESCE_TEMP = "??";
         private uint ScriptNamespace = 0xDEADBEEF;
 
         protected virtual dynamic NewScript => new T7ScriptObject(true);
@@ -400,6 +402,11 @@ namespace TreyarchCompiler.Games
                         Push(CurrentOp);
                         break;
 
+                    case "definedAccess":
+                        CurrentOp.SetOperands = EmitDefinedEvalFieldVariable(CurrentFunction, node, Context);
+                        Push(CurrentOp);
+                        break;
+
                     case "foreachSingle":
                     case "foreachDouble":
                         CurrentOp.SetOperands = EmitForeach(CurrentFunction, node);
@@ -423,6 +430,11 @@ namespace TreyarchCompiler.Games
 
                     case "relationalExpression":
                         CurrentOp.SetOperands = EmitRelationalExpression(CurrentFunction, node, Context);
+                        Push(CurrentOp);
+                        break;
+
+                    case "undefined_coalesce":
+                        CurrentOp.SetOperands = EmitUndefCoalesceExpression(CurrentFunction, node, Context);
                         Push(CurrentOp);
                         break;
 
@@ -642,6 +654,55 @@ namespace TreyarchCompiler.Games
             AddFieldVariable(CurrentFunction, node.ChildNodes[1].FindTokenAndGetText(), Context);
         }
 
+        private IEnumerable<QOperand> EmitDefinedEvalFieldVariable(dynamic CurrentFunction, ParseTreeNode node, uint Context)
+        {
+            AddLocal(CurrentFunction, DEFINED_CHECK_TEMP);
+            foreach (var val in EmitObject(CurrentFunction, node.ChildNodes[0].ChildNodes[0], Context))
+            {
+                yield return val;
+            }
+
+            AddEvalLocal(CurrentFunction, DEFINED_CHECK_TEMP, true);
+            CurrentFunction.AddOp(DynOp(ScriptOpCode.SetVariableField)); // assign the value to a temp
+
+            AddEvalLocal(CurrentFunction, DEFINED_CHECK_TEMP, false); // check if it is defined
+            CurrentFunction.AddOp(DynOp(ScriptOpCode.IsDefined));
+
+            dynamic __if_jmp = CurrentFunction.AddJump(DynOp(ScriptOpCode.JumpOnFalse));
+
+            AddEvalLocal(CurrentFunction, DEFINED_CHECK_TEMP, false);
+            CurrentFunction.AddOp(DynOp(ScriptOpCode.CastFieldObject)); // push it as a ref context so we can dereference it
+            AddFieldVariable(CurrentFunction, node.ChildNodes[1].FindTokenAndGetText(), Context);
+
+            dynamic __else_jmp = CurrentFunction.AddJump(DynOp(ScriptOpCode.Jump));
+            __if_jmp.After = CurrentFunction.Locals.GetEndOfChain();
+
+            CurrentFunction.AddOp(DynOp(ScriptOpCode.GetUndefined));
+            __else_jmp.After = CurrentFunction.Locals.GetEndOfChain();
+        }
+
+        private IEnumerable<QOperand> EmitUndefCoalesceExpression(dynamic CurrentFunction, ParseTreeNode node, uint Context, bool isDepthTwo = false)
+        {
+            AddLocal(CurrentFunction, UNDEFINED_COALESCE_TEMP);
+            yield return new QOperand(CurrentFunction, isDepthTwo ? node.ChildNodes[0].ChildNodes[0] : node.ChildNodes[0], 0);
+
+            AddEvalLocal(CurrentFunction, UNDEFINED_COALESCE_TEMP, true);
+            CurrentFunction.AddOp(DynOp(ScriptOpCode.SetVariableField)); // assign the value to a temp
+
+            AddEvalLocal(CurrentFunction, UNDEFINED_COALESCE_TEMP, false); // check if it is defined
+            CurrentFunction.AddOp(DynOp(ScriptOpCode.IsDefined));
+
+            dynamic __if_jmp = CurrentFunction.AddJump(DynOp(ScriptOpCode.JumpOnFalse));
+
+            AddEvalLocal(CurrentFunction, UNDEFINED_COALESCE_TEMP, false); // push it because it is defined
+
+            dynamic __else_jmp = CurrentFunction.AddJump(DynOp(ScriptOpCode.Jump));
+            __if_jmp.After = CurrentFunction.Locals.GetEndOfChain();
+
+            yield return new QOperand(CurrentFunction, isDepthTwo ? node.ChildNodes[2].ChildNodes[0] : node.ChildNodes[2], 0); // push the second half because it is not defined
+            __else_jmp.After = CurrentFunction.Locals.GetEndOfChain();
+        }
+
         private void AddFieldVariable(dynamic CurrentFunction, string FVIdentifier, uint Context)
         {
             switch(Game)
@@ -824,7 +885,10 @@ namespace TreyarchCompiler.Games
 
                 // will work for either game
                 if (T7Import.DevFunctions.Contains(function_name) && (Game == Enums.Games.T6 || t7_ns == ScriptNamespace))
+                {
+                    // Context |= (uint)ScriptContext.IsDebug;
                     Flags |= (byte)ImportFlags.IsDebug;
+                }
 
                 dynamic ImportRef = null;
 
@@ -1002,7 +1066,7 @@ namespace TreyarchCompiler.Games
             ParseTreeNode shNode = null;
             ArrayContext = default;
 
-            if (node.ChildNodes[1].ChildNodes[0].Term.Name != "=" && node.ChildNodes.Count > 2)
+            if (node.ChildNodes[1].ChildNodes[0].Term.Name != "=" && node.ChildNodes[1].ChildNodes[0].Term.Name != "??=" && node.ChildNodes.Count > 2)
             {
                 yield return new QOperand(CurrentFunction, node.ChildNodes[0].ChildNodes[0], 0);
                 yield return new QOperand(CurrentFunction, node.ChildNodes[2].ChildNodes[0], 0);
@@ -1029,6 +1093,13 @@ namespace TreyarchCompiler.Games
                     else
                     {
                         yield return new QOperand(CurrentFunction, node.ChildNodes[2].ChildNodes[0], 0);
+                    }
+                    break;
+
+                case "??=":
+                    foreach(var val in EmitUndefCoalesceExpression(CurrentFunction, node, 0, true))
+                    {
+                        yield return val;
                     }
                     break;
 
@@ -1168,7 +1239,11 @@ namespace TreyarchCompiler.Games
                 case 3:
 
                     yield return new QOperand(CurrentFunction, node.ChildNodes[0], 0);
-                    dynamic target = node.ChildNodes[1].Term.Name == "&&" ? DynOp(ScriptOpCode.JumpOnFalseExpr) : DynOp(ScriptOpCode.JumpOnTrueExpr);
+                    if(node.ChildNodes[1].Term.Name[0] == '?')
+                    {
+                        CurrentFunction.AddOp(DynOp(ScriptOpCode.IsDefined));
+                    }
+                    dynamic target = node.ChildNodes[1].Term.Name[1] == '&' ? DynOp(ScriptOpCode.JumpOnFalseExpr) : DynOp(ScriptOpCode.JumpOnTrueExpr);
                     dynamic __jmp = CurrentFunction.AddJump(target);
                     yield return new QOperand(CurrentFunction, node.ChildNodes[2], 0);
                     __jmp.After = CurrentFunction.Locals.GetEndOfChain();

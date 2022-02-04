@@ -281,6 +281,10 @@ namespace T7CompilerLib
 
             if (ScriptMetadata.TryGetHash(input, out uint value))
             {
+                if(HashMap.ContainsKey(value) && HashMap[value] != input)
+                {
+                    Console.WriteLine($"WARNING: HASH COLLISION DETECTED BETWEEN {input} and {HashMap[value]}");
+                }
                 HashMap[value] = input;
                 return value;
             }
@@ -514,6 +518,9 @@ namespace T7CompilerLib
                     ReverseOps[value] = (ushort)i;
             }
 
+            // hardcode this idc
+            ReverseOps[ScriptOpCode.CallBuiltin] = 0x0F;
+            this[0x0F] = ScriptOpCode.CallBuiltin;
         }
 
         public ushort this[ScriptOpCode indexer]
@@ -643,6 +650,7 @@ namespace T7CompilerLib
         DecTop = 16,
         IsPointer = 32,
         IsCustomInject = 64,
+        IsDebug = 128
     }
     [Flags]
     public enum ScriptExportFlags

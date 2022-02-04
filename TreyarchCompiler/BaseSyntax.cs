@@ -68,6 +68,7 @@ namespace TreyarchCompiler
         protected NonTerminal parenVariableExpr { private set; get; }
         protected NonTerminal setVariableFieldExpr { private set; get; }
         protected NonTerminal directAccess { private set; get; }
+        protected NonTerminal definedAccess { private set; get; }
         protected NonTerminal array { private set; get; }
         protected NonTerminal newArray { private set; get; }
         protected NonTerminal vector { private set; get; }
@@ -182,18 +183,19 @@ namespace TreyarchCompiler
 
             #region Operators
             //Punctuation
-            MarkPunctuation("(", ")", "{", "}", "[", "]", ",", ".", ";", "::", "[[", "]]", "@", "#define", "#include", "#using_animtree", "->");
+            MarkPunctuation("(", ")", "{", "}", "[", "]", ",", ".", ";", "::", "[[", "]]", "@", "#define", "#include", "#using_animtree", "->", "?.");
 
             //Operators
-            RegisterOperators(1, "||");
-            RegisterOperators(2, "&&");
+            RegisterOperators(1, "||", "?|");
+            RegisterOperators(2, "&&", "?&");
             RegisterOperators(3, "|");
             RegisterOperators(4, "^");
             RegisterOperators(5, "&");
-            RegisterOperators(6, "==", "!=");
+            RegisterOperators(6, "==", "!=", "!==", "===");
             RegisterOperators(7, "<", ">", "<=", ">=");
             RegisterOperators(8, "+", "-");
             RegisterOperators(9, "*", "/", "%");
+            RegisterOperators(10, "??");
 
             #endregion
 
@@ -223,8 +225,12 @@ namespace TreyarchCompiler
             #region Boolean
             //Master Boolean Rules
             booleanExpression.Rule = boolExprOperand | booleanAndExpression | booleanOrExpression;
-            booleanAndExpression.Rule = booleanExpression + ToTerm("&&") + booleanExpression;
-            booleanOrExpression.Rule = blorOp + ToTerm("||") + blorOp | booleanExpression + ToTerm("||") + booleanExpression;
+            booleanAndExpression.Rule = booleanExpression + ToTerm("&&") + booleanExpression | 
+                                        booleanExpression + ToTerm("?&") + booleanExpression;
+            booleanOrExpression.Rule = blorOp + ToTerm("||") + blorOp |
+                                       blorOp + ToTerm("?|") + blorOp |
+                                       booleanExpression + ToTerm("||") + booleanExpression |
+                                       booleanExpression + ToTerm("?|") + booleanExpression;
             boolNot.Rule = ToTerm("!") + boolNotOperand;
             
 
@@ -241,7 +247,8 @@ namespace TreyarchCompiler
             conditionalStatement.Rule = booleanExpression + ToTerm("?") + booleanExpression + ToTerm(":") + booleanExpression;
             
             //Boolean Operand
-            boolOperand.Rule =  new NonTerminal("pemdas", expression) |
+            boolOperand.Rule =  new NonTerminal("undefined_coalesce", boolExprOperand + ToTerm("??") + boolExprOperand) |
+                                new NonTerminal("pemdas", expression) |
                                 new NonTerminal("relationalExpression", boolExprOperand + relationalOperator + boolExprOperand) |
                                 new NonTerminal("relationalExpression", boolExprOperand + equalityOperator + boolExprOperand) |
                                 conditionalStatement;
@@ -250,8 +257,8 @@ namespace TreyarchCompiler
             #region Expressions
             //Master Expresssion Rules
             expr.Rule = parenExpr | mathExpr | animRef | animTree | boolNot;
-            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | size | iString | hashedString | vector;
-            variableExpr.Rule = parenVariableExpr | directAccess | call | Identifier | getFunction | lazyFunction | array;
+            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | newArray | size | iString | hashedString | vector;
+            variableExpr.Rule = parenVariableExpr | directAccess | definedAccess | call | Identifier | getFunction | lazyFunction | array;
 
             //Parenthesis
             parenExpr.Rule = "(" + expr + ")";
@@ -260,6 +267,7 @@ namespace TreyarchCompiler
 
             //Misc
             directAccess.Rule = variableExpr + "." + Identifier;
+            definedAccess.Rule = variableExpr + "?." + Identifier;
             setVariableFieldExpr.Rule = parenVariableFieldExpr | booleanExpression | newArray | shortHandArray;
             array.Rule = variableExpr + "[" + booleanExpression + "]" | StringLiteral + "[" + booleanExpression + "]";
             size.Rule = variableExpr + ".size" | StringLiteral + ".size";
@@ -414,6 +422,7 @@ namespace TreyarchCompiler
             variableExpr = new NonTerminal("expr");
             parenVariableExpr = new NonTerminal("parenVariableExpr");
             directAccess = new NonTerminal("directAccess");
+            definedAccess = new NonTerminal("definedAccess");
             call = new NonTerminal("call");
             callPrefix = new NonTerminal("callPrefix");
             callFrame = new NonTerminal("callFrame");
@@ -433,7 +442,7 @@ namespace TreyarchCompiler
             boolOperand = new NonTerminal("boolOperand");
             expression = new NonTerminal("expression");
             relationalOperator = new NonTerminal("relationalOperator", ToTerm(">") | ">=" | "<" | "<=");
-            equalityOperator = new NonTerminal("relationalOperator", ToTerm("==") | "!=");
+            equalityOperator = new NonTerminal("relationalOperator", ToTerm("==") | "!=" | "!==" | "===");
             conditionalStatement = new NonTerminal("conditionalStatement");
             booleanAndExpression = new NonTerminal("booleanExpression");
             booleanOrExpression = new NonTerminal("booleanExpression");
@@ -460,7 +469,7 @@ namespace TreyarchCompiler
             forStatement = new NonTerminal("forStatement");
             forBody = new NonTerminal("forBody");
             forIterate = new NonTerminal("forIterate");
-            shortExprOperator = new NonTerminal("shortExprOperator", ToTerm("+=") | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | ">>=" | "<<=");
+            shortExprOperator = new NonTerminal("shortExprOperator", ToTerm("+=") | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | ">>=" | "<<=" | "??=");
             incDecOperator = new NonTerminal("incDecOperator", ToTerm("++") | "--");
             switchStatement = new NonTerminal("switchStatement");
             switchContents = new NonTerminal("switchContents");

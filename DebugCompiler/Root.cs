@@ -958,13 +958,13 @@ namespace DebugCompiler
                 try
                 {
                     string exeFilePath = Assembly.GetExecutingAssembly().Location;
-                    var result = bo4.Call<long>(bo4.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t8cinternal.dll"));
-                    bo4.Refresh();
+                    //var result = bo4.Call<long>(bo4.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t8cinternal.dll"));
+                    //bo4.Refresh();
 
-                    if (result == 0)
-                    {
-                        return 4;
-                    }
+                    //if (result == 0)
+                    //{
+                    //    return 4;
+                    //}
 
                     //bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
                     //if (gsi != null)

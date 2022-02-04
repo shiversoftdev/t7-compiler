@@ -18,7 +18,7 @@ namespace T7CompilerLib.OpCodes
             }
             else
             {
-                Code = context.HasContext(ScriptContext.Threaded) ? ScriptOpCode.ScriptThreadCall : ScriptOpCode.ScriptFunctionCall;
+                Code = context.HasContext(ScriptContext.Threaded) ? ScriptOpCode.ScriptThreadCall : (context.HasContext(ScriptContext.IsDebug) ? ScriptOpCode.CallBuiltin: ScriptOpCode.ScriptFunctionCall);
             }
             Import = import;
         }

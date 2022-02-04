@@ -350,7 +350,7 @@ namespace T7CompilerLib.ScriptComponents
             { "==", ScriptOpCode.Equal },
             { "!=", ScriptOpCode.NotEqual },
             { "===", ScriptOpCode.SuperEqual },
-            { "!===", ScriptOpCode.SuperNotEqual },
+            { "!==", ScriptOpCode.SuperNotEqual },
         };
 
         private readonly List<KeyValuePair<string, string>> ForeachKeys = new List<KeyValuePair<string, string>>();
@@ -524,6 +524,7 @@ namespace T7CompilerLib.ScriptComponents
                 case ScriptOpCode.Return:
                 case ScriptOpCode.End:
                 case ScriptOpCode.Wait:
+                case ScriptOpCode.GetUndefined:
                     return __addop_internal(new T7OpCode(OpCode, Endianess));
 
                 default:
