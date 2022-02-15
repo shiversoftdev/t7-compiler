@@ -1,15 +1,21 @@
-#include "LazyLink.h"
+#include "Opcodes.h"
 #include "offsets.h"
 #include "detours.h"
 #include "builtins.h"
 
-void LazyLink::Init()
+void Opcodes::Init()
 {
 	// Change Opcode Handler 0x16 to VM_OP_GetLazyFunction
 	*(INT64*)(0x16 * 8 + OFF_ScrVm_Opcodes) = (INT64)VM_OP_GetLazyFunction;
+
+	// Change Opcode Handler 0x17 to VM_OP_GetLocalFunction
+	*(INT64*)(0x17 * 8 + OFF_ScrVm_Opcodes) = (INT64)VM_OP_GetLocalFunction;
+
+	// Change Opcode Handler 0x1A to VM_OP_NOP
+	*(INT64*)(0x1A * 8 + OFF_ScrVm_Opcodes) = (INT64)VM_OP_NOP;
 }
 
-void LazyLink::VM_OP_GetLazyFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate)
+void Opcodes::VM_OP_GetLazyFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate)
 {
 	INT64 base = (*fs_0 + 3) & 0xFFFFFFFFFFFFFFFCLL;
 	INT32 Namespace = *(INT32*)base;
@@ -21,6 +27,7 @@ void LazyLink::VM_OP_GetLazyFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* t
 	{
 		*(INT32*)(fs_0[1] + 0x18) = 0x0; // undefined
 		fs_0[1] += 0x10; // change stack top
+		*fs_0 = base + 0xC; // move past the data
 		return;
 	}
 
@@ -49,6 +56,7 @@ void LazyLink::VM_OP_GetLazyFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* t
 	{
 		*(INT32*)(fs_0[1] + 0x18) = 0x0; // undefined
 		fs_0[1] += 0x10; // change stack top
+		*fs_0 = base + 0xC; // move past the data
 		return;
 	}
 
@@ -56,4 +64,20 @@ void LazyLink::VM_OP_GetLazyFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* t
 	*(INT64*)(fs_0[1] + 0x10) = (INT64)buffer + currentExport->bytecodeOffset; // assign the top variable's value
 	fs_0[1] += 0x10; // change stack top
 	*fs_0 = base + 0xC; // move past the data
+}
+
+void Opcodes::VM_OP_GetLocalFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate)
+{
+	INT64 base = (*fs_0 + 3) & 0xFFFFFFFFFFFFFFFCLL;
+	INT32 jumpOffset = *(INT32*)base;
+	*fs_0 = base + 0x4; // move past the data
+
+	INT64 fnPtr = *fs_0 + jumpOffset;
+	*(INT32*)(fs_0[1] + 0x18) = 0xE; // assign the top variable's type
+	*(INT64*)(fs_0[1] + 0x10) = (INT64)fnPtr; // assign the top variable's value
+	fs_0[1] += 0x10; // change stack top
+}
+
+void Opcodes::VM_OP_NOP(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate)
+{
 }

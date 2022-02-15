@@ -454,6 +454,7 @@ namespace T7CompilerLib
     {
         private const string T7PCMetaPath = "t7pcv2.db";
         private static T7MetaV2 _pc_meta_;
+        public const ushort VM_OP_NOP = 0x1A;
 
         private static T7MetaV2 PCMeta
         {
@@ -533,6 +534,16 @@ namespace T7CompilerLib
                 if(indexer == ScriptOpCode.LazyGetFunction)
                 {
                     return 0x16; // hardcoded ig
+                }
+
+                if (indexer == ScriptOpCode.GetLocalFunction)
+                {
+                    return 0x17; // hardcoded ig
+                }
+
+                if (indexer == ScriptOpCode.Nop)
+                {
+                    return VM_OP_NOP; // hardcoded ig
                 }
 #if DEBUG
                 Console.WriteLine($"Platform is missing opcode: {indexer.ToString()}");

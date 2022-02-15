@@ -41,12 +41,21 @@ namespace T7CompilerLib.OpCodes
         {
             byte[] data = new byte[GetSize()];
 
-            base.Serialize(EmissionValue).CopyTo(data, 0);
+            uint baseAddress = CommitAddress.AlignValue(0x8);
+
+            uint offset = 0;
+            while(CommitAddress + offset < baseAddress)
+            {
+                T7ScriptMetadata.VM_OP_NOP.GetBytes(Endianess).CopyTo(data, offset);
+                offset += 2;
+            }
+
+            base.Serialize(EmissionValue).CopyTo(data, 0 + offset);
 
             if (Stack.Count < 1)
                 return data;
 
-            data[T7OP_SIZE] = (byte)Stack.Count;
+            data[T7OP_SIZE + offset] = (byte)Stack.Count;
 
             uint BaseAddress = GetCommitDataAddress() - CommitAddress;
 
@@ -62,10 +71,11 @@ namespace T7CompilerLib.OpCodes
 
         public override uint GetCommitDataAddress()
         {
+            uint baseAddress = CommitAddress.AlignValue(0x8);
             if (Stack.Count < 1)
-                return (CommitAddress + T7OP_SIZE);
+                return (baseAddress + T7OP_SIZE);
 
-            return (CommitAddress + T7OP_SIZE + 1).AlignValue(0x4);
+            return (baseAddress + T7OP_SIZE + 1).AlignValue(0x4);
         }
 
         /// <summary>

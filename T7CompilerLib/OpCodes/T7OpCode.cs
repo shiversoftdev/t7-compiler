@@ -53,7 +53,9 @@ namespace T7CompilerLib.OpCodes
             var next = NextOpCode;
 
             while (next.NextOpCode != null)
+            {
                 next = next.NextOpCode;
+            }
 
             return next;
         }
@@ -64,6 +66,7 @@ namespace T7CompilerLib.OpCodes
                 return;
             NextOpCode = NextOp;
             NextOp.LastOpCode = this;
+            // NextOp.NextOpCode = null;
         }
 
         public virtual void Insert(T7OpCode Target)
@@ -265,6 +268,7 @@ namespace T7CompilerLib.OpCodes
         SuperEqual,
         SuperNotEqual,
         LazyGetFunction,
+        GetLocalFunction,
         Count,
 
         Invalid = 0xFF,

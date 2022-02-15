@@ -79,6 +79,7 @@
     <Compile Include="OpCodes\T7OP_GetLocal.cs" />
     <Compile Include="OpCodes\T7OP_GetNumericValue.cs" />
     <Compile Include="OpCodes\T7OP_GetString.cs" />
+    <Compile Include="OpCodes\T7OP_GetLocalFunction.cs" />
     <Compile Include="OpCodes\T7OP_Jump.cs" />
     <Compile Include="OpCodes\T7OP_LazyGetFunction.cs" />
     <Compile Include="OpCodes\T7OP_Return.cs" />

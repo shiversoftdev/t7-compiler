@@ -194,6 +194,11 @@ namespace T7CompilerLib.ScriptComponents
             return export;
         }
 
+        public T7ScriptExport CreateLocal()
+        {
+            return T7ScriptExport.NewLocal(Endianess == EndianType.LittleEndian);
+        }
+
         /// <summary>
         /// Remove a function object from this script
         /// </summary>
@@ -252,6 +257,19 @@ namespace T7CompilerLib.ScriptComponents
             Export.Locals = new T7OP_SafeCreateLocalVariables(Export.Endianess);
             Export.OpCodes.Add(Export.Locals);
             Export.FriendlyName = "func_" + fid.ToString("X");
+            return Export;
+        }
+
+        internal static T7ScriptExport NewLocal(bool littleEndian)
+        {
+            T7ScriptExport Export = new T7ScriptExport(littleEndian);
+            Export.FunctionID = 0;
+            Export.Namespace = 0;
+            Export.NumParams = 0;
+            Export.Flags = 0;
+            Export.Locals = new T7OP_SafeCreateLocalVariables(Export.Endianess);
+            Export.OpCodes.Add(Export.Locals);
+            Export.FriendlyName = "";
             return Export;
         }
 
@@ -412,6 +430,18 @@ namespace T7CompilerLib.ScriptComponents
             //set FirstOpCode
         }
 
+        public T7OpCode[] GetOpcodes()
+        {
+            T7OpCode currOp = Locals;
+            List<T7OpCode> codes = new List<T7OpCode>();
+            while (currOp != null)
+            {
+                codes.Add(currOp);
+                currOp = currOp.NextOpCode;
+            }
+            return codes.ToArray();
+        }
+
         public void Commit(ref byte[] data, uint NextExportPtr, T7ScriptHeader header, T7ScriptMetadata EmissionTable)
         {
             List<byte> OpCodeData = new List<byte>();
@@ -558,6 +588,18 @@ namespace T7CompilerLib.ScriptComponents
             OpCodes.Add(code);
             Locals.GetEndOfChain().Append(code);
             return code;
+        }
+
+        public void ConcatFunction(T7ScriptExport child)
+        {
+            CommitJumps += child.CommitJumps;
+            var current = Locals.GetEndOfChain();
+            foreach (var code in child.GetOpcodes())
+            {
+                OpCodes.Add(code);
+                current.Append(code);
+                current = code;
+            }
         }
 
         /// <summary>
@@ -777,6 +819,19 @@ namespace T7CompilerLib.ScriptComponents
             CommitJumps += jmp.CommitJump; //bind the event
 
             return (T7OP_Jump) __addop_internal(jmp);
+        }
+
+        /// <summary>
+        /// Push a local function to this function
+        /// </summary>
+        /// <returns></returns>
+        public T7OP_GetLocalFunction AddLocalFunction()
+        {
+            T7OP_GetLocalFunction jmp = new T7OP_GetLocalFunction(ScriptOpCode.GetLocalFunction, Endianess);
+
+            CommitJumps += jmp.CommitJump; //bind the event
+
+            return (T7OP_GetLocalFunction)__addop_internal(jmp);
         }
 
         /// <summary>

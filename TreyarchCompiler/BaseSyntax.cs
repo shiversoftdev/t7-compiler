@@ -108,6 +108,7 @@ namespace TreyarchCompiler
         protected NonTerminal parenVariableFieldExpr { private set; get; }
         protected NonTerminal block { private set; get; }
         protected NonTerminal blockContent { private set; get; }
+        protected NonTerminal localFunction { private set; get; }
         #endregion
 
         #region Declarations
@@ -212,11 +213,9 @@ namespace TreyarchCompiler
 
             //Globals
             globals.Rule = ToTerm("#define") + Identifier + equalOperator + new NonTerminal("expr", (NumberLiteral | vector | iString | StringLiteral | booleanExpression | newArray)) + ";";
-            
+
             //Functions
-            functions.Rule = Identifier + parameters + block |
-                             Identifier + equalOperator + parameters + "=>" + new NonTerminal("block", declaration) |
-                             Identifier + equalOperator + parameters + "=>" + block + ";";
+            functions.Rule = Identifier + parameters + block;
 
             detourPath.Rule = gscForFunction | Identifier + "<" + Identifier + ".gsc" + ">" + "::" | Identifier + "<" + Identifier + ".csc" + ">" + "::";
             functionDetour.Rule = ToTerm("detour") + detourPath + Identifier + parameters + block;
@@ -258,7 +257,7 @@ namespace TreyarchCompiler
             //Master Expresssion Rules
             expr.Rule = parenExpr | mathExpr | animRef | animTree | boolNot;
             mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | newArray | size | iString | hashedString | vector;
-            variableExpr.Rule = parenVariableExpr | directAccess | definedAccess | call | Identifier | getFunction | lazyFunction | array;
+            variableExpr.Rule = parenVariableExpr | directAccess | definedAccess | call | Identifier | getFunction | localFunction | lazyFunction | array;
 
             //Parenthesis
             parenExpr.Rule = "(" + expr + ")";
@@ -331,6 +330,8 @@ namespace TreyarchCompiler
             //Block Content
             block.Rule = ToTerm("{") + blockContent + "}" | ToTerm("{") + "}";
             blockContent.Rule = declarations;
+
+            localFunction.Rule = ToTerm("function") + parameters + ToTerm("=>") + block;
             #endregion
 
             #region Declarations
@@ -408,6 +409,7 @@ namespace TreyarchCompiler
             directives = new NonTerminal("directives");
             directive = new NonTerminal("directive");
             functions = new NonTerminal("functions");
+            localFunction = new NonTerminal("localFunction");
             globals = new NonTerminal("globals");
             includes = new NonTerminal("includes");
             equalOperator = new NonTerminal("equalOperator", ToTerm("="));

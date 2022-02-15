@@ -273,6 +273,53 @@ namespace TreyarchCompiler.Games
             CurrentFunction.AddOp(DynOp(ScriptOpCode.End));
         }
 
+        private void EmitLocalFunction(ParseTreeNode functionNode, T7ScriptExport ParentFunction)
+        {
+            T7OP_Jump __else_jmp = ParentFunction.AddJump(DynOp(ScriptOpCode.Jump));
+            var Parameters = functionNode.ChildNodes[functionNode.ChildNodes.FindIndex(e => e.Term.Name == "parameters")].ChildNodes[0].ChildNodes;
+
+            T7ScriptExport CurrentFunction = CreateLocalFunction(functionNode);
+
+            foreach (var paramNode in Parameters)
+            {
+                AddLocal(CurrentFunction, paramNode.FindTokenAndGetText().ToLower());
+            }
+
+            IEnumerable<string> locals = CollectLocalVariables(CurrentFunction, functionNode.ChildNodes[functionNode.ChildNodes.FindIndex(e => e.Term.Name == "block")], false);
+
+            foreach (var variable in locals)
+            {
+                AddLocal(CurrentFunction, variable.ToLower());
+            }
+
+            Stack<QOperand> cached = new Stack<QOperand>();
+            while(ScriptOperands.Count > 0)
+            {
+                cached.Push(ScriptOperands.Pop());
+            }
+
+            EmitOptionalParameters(CurrentFunction, Parameters, false);
+            ScriptOperands.Clear();
+
+            Push(CurrentFunction, functionNode.ChildNodes[functionNode.ChildNodes.FindIndex(e => e.Term.Name == "block")], 0);
+            IterateStack(false);
+
+            ScriptOperands.Clear();
+
+            while(cached.Count > 0)
+            {
+                ScriptOperands.Push(cached.Pop());
+            }
+
+            CurrentFunction.AddOp(DynOp(ScriptOpCode.End));
+
+            ParentFunction.ConcatFunction(CurrentFunction);
+            __else_jmp.After = ParentFunction.Locals.GetEndOfChain();
+
+            var pushFn = ParentFunction.AddLocalFunction();
+            pushFn.After = __else_jmp;
+        }
+
         private void IterateStack(bool IsCustomInject)
         {
             while (ScriptOperands.Count > 0)
@@ -486,6 +533,10 @@ namespace TreyarchCompiler.Games
 
                     case "lazyFunction":
                         EmitLazyFunctionPtr(CurrentFunction, node, 0, HasContext(Context, ScriptContext.IsCustomInject));
+                        break;
+
+                    case "localFunction":
+                        EmitLocalFunction(node, CurrentFunction);
                         break;
 
                     case "vector":
@@ -1418,6 +1469,15 @@ namespace TreyarchCompiler.Games
                 default:
                     return T7().Exports.Add(FunctionMetadata[FunctionName].FunctionHash,
                 FunctionMetadata[FunctionName].NamespaceHash, FunctionMetadata[FunctionName].NumParams);
+            }
+        }
+
+        private T7ScriptExport CreateLocalFunction(ParseTreeNode functionNode)
+        {
+            switch (Game)
+            {
+                default:
+                    return T7().Exports.CreateLocal();
             }
         }
 

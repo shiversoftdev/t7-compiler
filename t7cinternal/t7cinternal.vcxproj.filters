@@ -27,7 +27,7 @@
     <ClInclude Include="detours.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LazyLink.h">
+    <ClInclude Include="Opcodes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -41,7 +41,7 @@
     <ClCompile Include="detours.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LazyLink.cpp">
+    <ClCompile Include="Opcodes.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
