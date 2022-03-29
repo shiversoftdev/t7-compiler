@@ -31,7 +31,7 @@ namespace TreyarchCompiler.Games.BO3
         #endregion
 
         #region Virtual
-        protected override NonTerminal FunctionFrame => new NonTerminal("functionFrame", ToTerm("autoexec", "autoexec") + functions | functions);
+        protected override NonTerminal FunctionFrame => new NonTerminal("functionFrame", ToTerm("autoexec", "autoexec") + functions | functions | ToTerm("function") + ToTerm("autoexec", "autoexec") + functions | ToTerm("function") + functions);
         protected override NonTerminal NameSpaceDirective => new NonTerminal("namespace", "#namespace" + Identifier + ";");
         protected override NonTerminal verbatimString => new NonTerminal("verbatimString", Unsupported);
         protected override NonTerminal iString => new NonTerminal("iString", ToTerm("&") + StringLiteral);

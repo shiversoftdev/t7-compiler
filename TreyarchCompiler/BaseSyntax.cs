@@ -184,7 +184,7 @@ namespace TreyarchCompiler
 
             #region Operators
             //Punctuation
-            MarkPunctuation("(", ")", "{", "}", "[", "]", ",", ".", ";", "::", "[[", "]]", "@", "#define", "#include", "#using_animtree", "->", "?.");
+            MarkPunctuation("(", ")", "{", "}", "[", "]", ",", ".", ";", "::", "[[", "]]", "@", "#define", "#include", "#using_animtree", "->", "?.", "function");
 
             //Operators
             RegisterOperators(1, "||", "?|");

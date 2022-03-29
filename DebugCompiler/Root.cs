@@ -75,7 +75,13 @@ namespace DebugCompiler
                 root.cmd_Compile(new string[] { "scripts", "pc", null, "false", "--build" });
                 return;
             }
-            
+
+            if (args.Length > 2 && args[0] == "--inject")
+            {
+                root.cmd_Inject(new string[] { "compiled.gsc", args[1], args[2]});
+                return;
+            }
+
             root.AddCommand(ConsoleKey.Q, "Quit Program", root.cmd_Exit);
             root.AddCommand(ConsoleKey.H, "Hash String [fnv|fnv64|gsc] <baseline> <prime> [input]", root.cmd_HashString);
             root.AddCommand(ConsoleKey.T, "Toggle Text History", root.cmd_ToggleNoClear);
