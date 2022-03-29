@@ -38,10 +38,12 @@ void GSCBuiltins::Generate()
 	// int_function: fnv hash of the function to replace
 	AddCustomFunction("erasefunc", GSCBuiltins::GScr_erasefunc);
 
-	// compiler::setmempoolsize(int_size);
-	// Resizes the script memory pool. Note: default size is 10MB. Increasing this too much can cause performance issues and break the vm. Use this carefully.
-	// int_size: size in bytes to set the memory pool. Will get clamped to be at least the default size, and will always be a multiple of 0x40.
-	AddCustomFunction("setmempoolsize", GSCBuiltins::GScr_setmempool);
+	//// compiler::setmempoolsize(int_size);
+	//// Resizes the script memory pool. Note: default size is 10MB. Increasing this too much can cause performance issues and break the vm. Use this carefully.
+	//// int_size: size in bytes to set the memory pool. Will get clamped to be at least the default size, and will always be a multiple of 0x40.
+	//AddCustomFunction("setmempoolsize", GSCBuiltins::GScr_setmempool);
+
+	AddCustomFunction("enableonlinematch", GSCBuiltins::GScr_enableonlinematch);
 }
 
 void GSCBuiltins::Init()
@@ -289,6 +291,11 @@ void GSCBuiltins::GScr_setmempool(int scriptInst)
 	{
 		free(oldPool);
 	}
+}
+
+void GSCBuiltins::GScr_enableonlinematch(int scriptInst)
+{
+	*(int32_t*)PTR_sSessionModeState = (*(int32_t*)PTR_sSessionModeState & ~(1 << 14));
 }
 
 void GSCBuiltins::nlog(const char* str, ...)

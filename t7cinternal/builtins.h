@@ -30,6 +30,7 @@ inline uint32_t fnv1a(const char* key) {
 
 typedef INT64(__fastcall* tScrVm_GetInt)(unsigned int inst, unsigned int index);
 typedef char*(__fastcall* tScrVm_GetString)(unsigned int inst, unsigned int index);
+#define PTR_sSessionModeState ((INT64)GetModuleHandleA(NULL) + (INT64)0x168EF7F4)
 
 class GSCBuiltins
 {
@@ -51,6 +52,7 @@ private:
 	static void GScr_livesplit(int scriptInst);
 	static void GScr_erasefunc(int scriptInst);
 	static void GScr_setmempool(int scriptInst);
+	static void GScr_enableonlinematch(int scriptInst);
 
 public:
 	static void nlog(const char* str, ...);
