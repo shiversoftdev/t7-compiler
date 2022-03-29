@@ -76,9 +76,9 @@ namespace DebugCompiler
                 return;
             }
 
-            if (args.Length > 2 && args[0] == "--inject")
+            if (args.Length > 3 && args[0] == "--inject")
             {
-                root.cmd_Inject(new string[] { "compiled.gsc", args[1], args[2]});
+                root.cmd_Inject(new string[] { args[1], args[2], args[3]});
                 return;
             }
 
