@@ -104,6 +104,7 @@ namespace TreyarchCompiler.Games
             try
             {
                 CompileTree();
+                T7().Header.Namespace = ScriptNamespace;
             }
             catch (Exception ex)
             {
@@ -162,6 +163,9 @@ namespace TreyarchCompiler.Games
                     var FunctionFrame = directive;
                     switch (directive.ChildNodes[0].Term.Name.ToLower())
                     {
+                        case "pragmastripped":
+                            T7().Header.Stripped = true;
+                            break;
                         case "includes":
                             foreach (var node in directive.ChildNodes[0].ChildNodes)
                                 Script.Includes.Add(NormalizeUsing(node.Token.ValueString));
@@ -1498,7 +1502,10 @@ namespace TreyarchCompiler.Games
             {
                 var directive = _tree.Root.ChildNodes[0].ChildNodes[0].ChildNodes.Find(x => x.ChildNodes[0].Term.Name.ToLower() == "namespace");
                 if (directive != null)
+                {
                     ScriptNamespace = Script.ScriptHash(directive.ChildNodes[0].ChildNodes[1].FindTokenAndGetText().ToLower());
+                    T7().Header.Namespace = ScriptNamespace;
+                }
             }
         }
 

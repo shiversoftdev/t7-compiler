@@ -61,7 +61,7 @@ namespace T7CompilerLib
             LittleEndian = littleEndian;
             __header__ = T7ScriptHeader.New(littleEndian);
             __exports__ = T7ExportsSection.New(littleEndian, this);
-            __imports__ = T7ImportSection.New(littleEndian);
+            __imports__ = T7ImportSection.New(littleEndian, this);
             __dstrings__ = T7DebugTableSection.New(littleEndian); //not used anymore
             __strings__ = T7StringTableSection.New(littleEndian);
             __includes__ = T7IncludesSection.New(littleEndian);

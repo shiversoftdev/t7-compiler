@@ -815,10 +815,12 @@ namespace DebugCompiler
                         {
                             string exeFilePath = Assembly.GetExecutingAssembly().Location;
                             var result = bo3.Call<long>(bo3.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll"));
+                            Console.WriteLine($"LoadLibrary Result => {result:X}");
+
                             bo3.Refresh();
-                            if (result == 0)
+                            if (result <= 0)
                             {
-                                return 4;
+                                return (int)result;
                             }
 
                             bo3.Call<VOID>(bo3.GetProcAddress(@"t7cinternal.dll", @"RemoveDetours"));

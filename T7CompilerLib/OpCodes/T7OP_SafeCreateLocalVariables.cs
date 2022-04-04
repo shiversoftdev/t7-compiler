@@ -63,7 +63,7 @@ namespace T7CompilerLib.OpCodes
             {
                 uint index = (uint)(Stack[key]) * 8;
 
-                key.GetBytes(Endianess).CopyTo(data, BaseAddress + index);
+                ((int)Stack[key] + 1).GetBytes(Endianess).CopyTo(data, BaseAddress + index);
             }
 
             return data;

@@ -47,6 +47,8 @@ namespace T7CompilerLib.ScriptComponents
         public byte IncludeCount { get; internal set; }
         public byte AnimTreeCount { get; internal set; }
         public byte Flags { get; internal set; }
+        public bool Stripped { get; set; }
+        public uint Namespace = 0xDEADBEEF;
 
         private void Deserialize(ref byte[] data, ulong ExpectedMagic)
         {

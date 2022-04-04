@@ -18,6 +18,7 @@ namespace T7CompilerLib.ScriptComponents
         private T7ScriptObject Script;
         public const uint EXPORT_ENTRY_SIZE = 20;
         private EndianType Endianess;
+        private uint CurrentExportID = 1;
         /// <summary>
         /// Script metadata.
         /// </summary>
@@ -185,6 +186,7 @@ namespace T7CompilerLib.ScriptComponents
             
             T7ScriptExport Previous = FirstExport?.Last();
             T7ScriptExport export = T7ScriptExport.New(Previous, Endianess == EndianType.LittleEndian, FunctionID, NamespaceID, NumParams);
+            export.ExportID = CurrentExportID++;
 
             if (FirstExport == null)
                 FirstExport = export;
@@ -284,6 +286,7 @@ namespace T7CompilerLib.ScriptComponents
         public uint FunctionID { get; private set; }
         public uint Namespace { get; private set; }
         public byte NumParams { get; private set; }
+        public uint ExportID { get; set; }
         public byte Flags { get; set; }
 
         public uint LoadedOffset;
@@ -473,18 +476,18 @@ namespace T7CompilerLib.ScriptComponents
             EndianWriter writer = new EndianWriter(new MemoryStream(data), Endianess);
             writer.BaseStream.Position = NextExportPtr;
 
-            CRC32 crc32 = new CRC32();
+            //CRC32 crc32 = new CRC32();
 
-            for(int i = ByteCodeAddress; i < ByteCodeAddress + OpCodeData.Count; i++)
-            {
-                crc32.Update(data[i]);
-            }
+            //for(int i = ByteCodeAddress; i < ByteCodeAddress + OpCodeData.Count; i++)
+            //{
+            //    crc32.Update(data[i]);
+            //}
 
-            CRC32 = crc32.Value;
+            //CRC32 = crc32.Value;
 
             writer.Write((int)-1);
             writer.Write(ByteCodeAddress);
-            writer.Write(FunctionID);
+            writer.Write(header.Stripped ? ExportID : FunctionID);
             writer.Write(Namespace);
             writer.Write(NumParams);
             writer.Write(Flags);

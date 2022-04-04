@@ -10,6 +10,7 @@ namespace T7CompilerLib.ScriptComponents
         private EndianType Endianess;
         private HashSet<uint> ILBuiltins = new HashSet<uint>();
         public readonly uint BuiltinHashReplacement = T7ScriptObject.Com_Hash("IsProfileBuild", 0x4B9ACE2F, 0x1000193);
+        private T7ScriptObject Script;
         private T7ImportSection(bool littleEndian) 
         {
             Endianess = littleEndian ? EndianType.LittleEndian : EndianType.BigEndian;
@@ -18,11 +19,12 @@ namespace T7CompilerLib.ScriptComponents
             ILBuiltins.Add(T7ScriptObject.Com_Hash("EnableOnlineMatch", 0x4B9ACE2F, 0x1000193));
         } //Prevent public initializers
 
-        internal static T7ImportSection New(bool littleEndian)
+        internal static T7ImportSection New(bool littleEndian, T7ScriptObject script)
         {
             T7ImportSection imports = new T7ImportSection(littleEndian);
             imports.Imports = new Dictionary<ulong, T7Import>();
             imports.LoadedOffsetPairs = new Dictionary<uint, T7Import>();
+            imports.Script = script;
             return imports;
         }
 
@@ -50,6 +52,27 @@ namespace T7CompilerLib.ScriptComponents
             return (ushort)Imports.Count;
         }
 
+        private uint DetermineFunctionNamespace(uint FunctionHash, uint FunctionNS, bool custom_builtin)
+        {
+            if (custom_builtin)
+            {
+                return BuiltinHashReplacement;
+            }
+
+            if(FunctionNS != Script.Header.Namespace)
+            {
+                return FunctionHash;
+            }
+
+            var export = Script.Exports.Get(FunctionHash);
+            if (!Script.Header.Stripped || export is null)
+            {
+                return FunctionHash;
+            }
+
+            return export.ExportID;
+        }
+
         public override byte[] Serialize()
         {
             byte[] data = new byte[Size()];
@@ -61,7 +84,7 @@ namespace T7CompilerLib.ScriptComponents
                 var import = Imports[key];
                 bool custom_builtin = IsBuiltinImport(import.Function);
 
-                writer.Write(custom_builtin ? BuiltinHashReplacement : import.Function);
+                writer.Write(DetermineFunctionNamespace(import.Function, import.Namespace, custom_builtin));
                 writer.Write(import.Namespace);
                 writer.Write((ushort)import.References.Count);
                 writer.Write((byte)(import.NumParams + (custom_builtin ? 1 : 0)));

@@ -43,6 +43,7 @@ namespace TreyarchCompiler
         protected NonTerminal includes { private set; get; }
         protected NonTerminal functionDetour { private set; get; }
         protected NonTerminal detourPath { private set; get; }
+        protected NonTerminal pragmaStripped { private set; get; }
         #endregion
 
         #region Boolean
@@ -205,11 +206,13 @@ namespace TreyarchCompiler
             #region Directives
             //Master Directive Rules
             directives.Rule = MakeStarRule(directives, null, directive);
-            directive.Rule = Empty | Overrides | includes | globals | FunctionFrame | NameSpaceDirective | usingTree | functionDetour;
+            directive.Rule = Empty | Overrides | includes | globals | FunctionFrame | NameSpaceDirective | usingTree | functionDetour | pragmaStripped;
 
             //Includes
             includes.Rule = ToTerm("#include") + IncludeIdentifier + ";" | 
                             ToTerm("#using") + IncludeIdentifier + ";";
+
+            pragmaStripped.Rule = ToTerm("#pragma") + ToTerm("stripped") + ";";
 
             //Globals
             globals.Rule = ToTerm("#define") + Identifier + equalOperator + new NonTerminal("expr", (NumberLiteral | vector | iString | StringLiteral | booleanExpression | newArray)) + ";";
@@ -489,6 +492,7 @@ namespace TreyarchCompiler
             jumpStatement = new NonTerminal("jumpStatement");
             functionDetour = new NonTerminal("functionDetour");
             detourPath = new NonTerminal("detourPath");
+            pragmaStripped = new NonTerminal("pragmaStripped");
             Root = new NonTerminal("program") { Rule = directives };
         }
     }
