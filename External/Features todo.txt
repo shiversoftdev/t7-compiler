@@ -1,9 +1,6 @@
 ﻿Freeze/Unfreeze memory value
 Suspend/Resume Process
 Inject DLL via:
-	ThreadEx.Hijack
-	LoadLibraryA/CreateRemoteThread
-	Manual Map (Lunar method, or upgrade features to match that of lunar's)
 	Managed dll inject
 	SetWindowsHookEx
 Search memory via byte patterns
@@ -14,11 +11,11 @@ self doppelgang
 https://github.com/aaaddress1/PR0CESS/tree/main/miniGhosting
 Event dispatcher system:
 	- Emplace hooks such that an IPC event can fire and send info back to external
+Return address spoofing for x86 and x64
 
 Testing TODO:
 
 	float/double RPC
-	32 bit thread hijacking
 
 Bug Fixes TODO:
 	

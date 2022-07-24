@@ -209,6 +209,10 @@ namespace System
         /// Unhandled argument type for serialization: {0}
         /// </summary>
         internal static readonly long DSTR_UNHANDLED_ARG_RPC = 48;
+        /// <summary>
+        /// Dotnet runtime missing
+        /// </summary>
+        internal static readonly long DSTR_DOTNET_MISSING = 49;
         #endregion
         private static readonly PointerEx APISetMapAddress;
         static EnvironmentEx()
@@ -266,6 +270,7 @@ namespace System
             DSTR_CALLTYPE_NOT_IMPLEMENTED = CreateDebugString("Calltype {0} not implemented");
             DSTR_SERIALIZE_TYPE_INVALID = CreateDebugString("Cannot cast type [{0}] to a serializable type for RPC. If this was an array, convert it to a byte array first.");
             DSTR_UNHANDLED_ARG_RPC = CreateDebugString("Unhandled argument type for serialization: {0}");
+            DSTR_DOTNET_MISSING = CreateDebugString("Dotnet runtime missing");
             #endif
             #endregion
         }

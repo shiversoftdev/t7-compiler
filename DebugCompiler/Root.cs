@@ -779,6 +779,7 @@ namespace DebugCompiler
                 return Error("No game process found for Black Ops III.");
             }
             bo3.OpenHandle();
+            bo3.SetDefaultCallType(ExCallThreadType.XCTT_QUAPC);
             OriginalPID = bo3.BaseProcess.Id;
             Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3[0x9409AB0]}");
             var sptGlob = bo3.GetValue<ulong>(bo3[0x9409AB0]);

@@ -36,16 +36,6 @@ namespace System
             return px.Subtract(pxo);
         }
 
-        public static bool operator <(PointerEx px, PointerEx pxo)
-        {
-            return IntPtr.Size == sizeof(int) ? ((int)px < (int)pxo) : ((long)px < (long)pxo);
-        }
-
-        public static bool operator >(PointerEx px, PointerEx pxo)
-        {
-            return IntPtr.Size == sizeof(int) ? ((int)px > (int)pxo) : ((long)px > (long)pxo);
-        }
-
         public static PointerEx operator &(PointerEx px, PointerEx pxo)
         {
             return IntPtr.Size == sizeof(int) ? ((int)px & (int)pxo) : ((long)px & (long)pxo);
@@ -117,7 +107,7 @@ namespace System
 
         public static implicit operator PointerEx(uint ui)
         {
-            return new IntPtr(ui);
+            return new IntPtr((int)ui);
         }
 
         public static implicit operator PointerEx(long l)

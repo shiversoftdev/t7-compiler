@@ -1119,11 +1119,38 @@ namespace System
             object[] funcArgs = new object[] { hThread };
             return (uint)Evasion.DInvoke.ManualInvoke(CONST_KERNEL32, "ResumeThread", typeof(_ResumeThread), ref funcArgs);
         }
-#endregion
+        #endregion
 
-#endregion
-#endregion
-#endregion
+#region QueueUserAPC2
+#if USE_PINVOKE
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint QueueUserAPC2(PointerEx pfnAPC, PointerEx hThread, PointerEx dwData, int flags);
+        public static uint QueueUserAPC2P(PointerEx pfnAPC, PointerEx hThread, PointerEx dwData, int flags)
+        {
+            throw new NotImplementedException();
+        }
+#else
+        public static uint QueueUserAPC2D(PointerEx pfnAPC, PointerEx hThread, int flags)
+        {
+            object[] funcArgs = new object[] { (ulong)hThread, (ulong)flags, (ulong)pfnAPC, (ulong)0, (ulong)0, (ulong)0 };
+            return (uint)Evasion.DInvoke.DynamicAPIInvoke(CONST_NTDLL, "NtQueueApcThreadEx", typeof(_NtQueueApcThreadEx), ref funcArgs);
+        }
+#endif
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate uint _NtQueueApcThreadEx(ulong hThread, ulong flags, ulong pfnAPC, ulong a4, ulong a5, ulong a6);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate uint _QueueUserAPC2(PointerEx pfnAPC, PointerEx hThread, int flags);
+        public static uint QueueUserAPC2M(PointerEx pfnAPC, PointerEx hThread, int flags)
+        {
+            object[] funcArgs = new object[] { (ulong)hThread, (ulong)flags, (ulong)pfnAPC, (ulong)0, (ulong)0, (ulong)0 };
+            return (uint)Evasion.DInvoke.ManualInvoke(CONST_NTDLL, "NtQueueApcThreadEx", typeof(_NtQueueApcThreadEx), ref funcArgs);
+        }
+        #endregion
+
+        #endregion
+        #endregion
+        #endregion
 
         #region DInvoke Internal Registry
         private struct DELEGATES
@@ -1206,7 +1233,8 @@ namespace System
         public static Native._SetThreadContext SetThreadContext { get; private set; }
         public static Native._ResumeThread ResumeThread { get; private set; }
         public static Native._LoadLibrary LoadLibrary { get; private set; }
-        
+        public static Native._QueueUserAPC2 QueueUserAPC2 { get; private set; }
+
         private static void StealthUpdate()
         {
             if(Stealth == NativeStealthType.ManualInvoke)
@@ -1221,6 +1249,7 @@ namespace System
                 SetThreadContext = Native.SetThreadContextM;
                 ResumeThread = Native.ResumeThreadM;
                 LoadLibrary = Native.LoadLibraryM;
+                QueueUserAPC2 = Native.QueueUserAPC2M;
             }
             else
             {
@@ -1235,6 +1264,7 @@ namespace System
                 SetThreadContext = Native.SetThreadContextP;
                 ResumeThread = Native.ResumeThreadP;
                 LoadLibrary = Native.LoadLibraryP;
+                QueueUserAPC2 = Native.QueueUserAPC2P;
 #else
                 WriteProcessMemory = Native.WriteProcessMemoryD;
                 ReadProcessMemory = Native.ReadProcessMemoryD;
@@ -1246,6 +1276,7 @@ namespace System
                 SetThreadContext = Native.SetThreadContextD;
                 ResumeThread = Native.ResumeThreadD;
                 LoadLibrary = Native.LoadLibraryD;
+                QueueUserAPC2 = Native.QueueUserAPC2D;
 #endif
             }
         }

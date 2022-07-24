@@ -159,7 +159,7 @@ namespace TreyarchCompiler.Games
             if (_tree.Root.ChildNodes[0].ChildNodes.Count > 0)
                 foreach (var directive in _tree.Root.ChildNodes[0].ChildNodes[0].ChildNodes.OrderBy(x => x.ChildNodes[0].Term.Name.ToLower() == "functions"))
                 {
-                    byte flags = (byte)ExportFlags.Private;
+                    byte flags = (byte)0;
                     var FunctionFrame = directive;
                     switch (directive.ChildNodes[0].Term.Name.ToLower())
                     {

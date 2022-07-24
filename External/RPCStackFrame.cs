@@ -172,6 +172,13 @@ namespace System
 
         public static bool IsByValue(Type t)
         {
+            if(!Environment.Is64BitProcess)
+            {
+                if(t == typeof(ulong) || t == typeof(long))
+                {
+                    return false;
+                }
+            }
             return AllowedByValue.Contains(t);
         }
 

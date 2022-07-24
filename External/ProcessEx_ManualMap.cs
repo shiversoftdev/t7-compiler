@@ -76,7 +76,7 @@ namespace System
 #if DEBUG
             DLog($"Module memory allocated at 0x{remoteModuleHandle.ToInt64():X16}");
 #endif
-            return MapModuleToMemory(localModuleHandle, remoteModuleHandle, moduleRaw, PEINFO);
+            return __MapModuleToMemory(localModuleHandle, remoteModuleHandle, moduleRaw, PEINFO);
         }
 
         /// <summary>
@@ -87,7 +87,7 @@ namespace System
         /// <param name="remoteModuleHandle">Pointer to the PEINFO image.</param>
         /// <param name="PEINFO">PE_META_DATA of the module being mapped.</param>
         /// <returns>PE_MANUAL_MAP object</returns>
-        private PE_MANUAL_MAP MapModuleToMemory(IntPtr localModuleHandle, IntPtr remoteModuleHandle, byte[] moduleRaw, PE_META_DATA PEINFO)
+        private PE_MANUAL_MAP __MapModuleToMemory(IntPtr localModuleHandle, IntPtr remoteModuleHandle, byte[] moduleRaw, PE_META_DATA PEINFO)
         {
             // Check module matches the process architecture
             if ((PEINFO.Is32Bit && IntPtr.Size == 8) || (!PEINFO.Is32Bit && IntPtr.Size == 4))
@@ -98,7 +98,10 @@ namespace System
 
             // Write PE header to memory
             UInt32 SizeOfHeaders = PEINFO.Is32Bit ? PEINFO.OptHeader32.SizeOfHeaders : PEINFO.OptHeader64.SizeOfHeaders;
-            SetBytes(remoteModuleHandle, moduleRaw.Take((int)SizeOfHeaders).ToArray());
+            IntPtr RegionSize = PEINFO.Is32Bit ? (IntPtr)PEINFO.OptHeader32.SizeOfImage : (IntPtr)PEINFO.OptHeader64.SizeOfImage;
+
+            byte[] moduleRemote = new byte[RegionSize.ToInt32()];
+            moduleRaw.Take((int)SizeOfHeaders).ToArray().CopyTo(moduleRemote, 0);
 
 #if DEBUG
             DLog($"PE Header written at 0x{remoteModuleHandle.ToInt64():X16}");
@@ -108,20 +111,22 @@ namespace System
             foreach (IMAGE_SECTION_HEADER ish in PEINFO.Sections)
             {
                 // Calculate offsets
-                IntPtr pVirtualSectionBase = (IntPtr)((UInt64)remoteModuleHandle + ish.VirtualAddress);
+                IntPtr pVirtualSectionBase = (IntPtr)(ish.VirtualAddress);
 
-                // Write data
-                SetBytes(pVirtualSectionBase, moduleRaw.Skip((int)ish.PointerToRawData).Take((int)ish.SizeOfRawData).ToArray());
+                moduleRaw.Skip((int)ish.PointerToRawData).Take((int)ish.SizeOfRawData).ToArray().CopyTo(moduleRemote, pVirtualSectionBase.ToInt32());
 #if DEBUG
                 DLog($"{new string(ish.Name).Trim().Replace('\x00'.ToString(), "")} written at 0x{pVirtualSectionBase.ToInt64():X16}, Size: 0x{ish.SizeOfRawData:X8}");
 #endif
             }
 
             // Perform relocations
-            MMRelocateModule(PEINFO, remoteModuleHandle, moduleRaw);
+            __MMRelocateModule(PEINFO, remoteModuleHandle, moduleRaw, moduleRemote);
 
             // Rewrite IAT
-            MMRewriteModuleIAT(PEINFO, remoteModuleHandle, moduleRaw);
+            __MMRewriteModuleIAT(PEINFO, remoteModuleHandle, moduleRaw, moduleRemote);
+
+            // Write the module to memory
+            SetBytes(remoteModuleHandle, moduleRemote);
 
             // Set memory protections
             MMSetModuleSectionPermissions(PEINFO, remoteModuleHandle, moduleRaw);
@@ -145,27 +150,27 @@ namespace System
         /// <param name="PEINFO">Module meta data struct (PE.PE_META_DATA).</param>
         /// <param name="ModuleMemoryBase">Base address of the module in memory.</param>
         /// <returns>void</returns>
-        private void MMRelocateModule(PE_META_DATA PEINFO, IntPtr ModuleMemoryBase, byte[] moduleRaw)
+        private void __MMRelocateModule(PE_META_DATA PEINFO, IntPtr ModuleMemoryBase, byte[] moduleRaw, byte[] moduleRemote)
         {
             IMAGE_DATA_DIRECTORY idd = PEINFO.Is32Bit ? PEINFO.OptHeader32.BaseRelocationTable : PEINFO.OptHeader64.BaseRelocationTable;
             Int64 ImageDelta = PEINFO.Is32Bit ? (Int64)((UInt64)ModuleMemoryBase - PEINFO.OptHeader32.ImageBase) :
                                                 (Int64)((UInt64)ModuleMemoryBase - PEINFO.OptHeader64.ImageBase);
 
             // Ptr for the base reloc table
-            IntPtr pRelocTable = (IntPtr)((UInt64)ModuleMemoryBase + idd.VirtualAddress);
+            IntPtr pRelocTable = (IntPtr)(idd.VirtualAddress);
             Int32 nextRelocTableBlock = -1;
             // Loop reloc blocks
             while (nextRelocTableBlock != 0)
             {
                 IMAGE_BASE_RELOCATION ibr = new IMAGE_BASE_RELOCATION();
-                ibr = GetStruct<IMAGE_BASE_RELOCATION>(pRelocTable);
+                ibr = moduleRemote.Skip(pRelocTable.ToInt32()).Take(Marshal.SizeOf(typeof(IMAGE_BASE_RELOCATION))).ToArray().ToStruct<IMAGE_BASE_RELOCATION>();
 
                 Int64 RelocCount = ((ibr.SizeOfBlock - Marshal.SizeOf(ibr)) / 2);
                 for (int i = 0; i < RelocCount; i++)
                 {
                     // Calculate reloc entry ptr
                     IntPtr pRelocEntry = (IntPtr)((UInt64)pRelocTable + (UInt64)Marshal.SizeOf(ibr) + (UInt64)(i * 2));
-                    UInt16 RelocValue = (UInt16)GetValue<ushort>(pRelocEntry);
+                    UInt16 RelocValue = (UInt16)BitConverter.ToUInt16(moduleRemote, pRelocEntry.ToInt32());
 
                     // Parse reloc value
                     // The type should only ever be 0x0, 0x3, 0xA
@@ -178,16 +183,16 @@ namespace System
                     {
                         try
                         {
-                            IntPtr pPatch = (IntPtr)((UInt64)ModuleMemoryBase + ibr.VirtualAdress + RelocPatch);
+                            IntPtr pPatch = (IntPtr)(ibr.VirtualAdress + RelocPatch);
                             if (RelocType == 0x3) // IMAGE_REL_BASED_HIGHLOW (x86)
                             {
-                                Int32 OriginalPtr = GetValue<int>(pPatch);
-                                SetValue<int>(pPatch, (OriginalPtr + (Int32)ImageDelta));
+                                Int32 OriginalPtr = BitConverter.ToInt32(moduleRemote, pPatch.ToInt32());
+                                BitConverter.GetBytes((OriginalPtr + (Int32)ImageDelta)).CopyTo(moduleRemote, pPatch.ToInt32());
                             }
                             else // IMAGE_REL_BASED_DIR64 (x64)
                             {
-                                Int64 OriginalPtr = GetValue<long>(pPatch);
-                                SetValue<long>(pPatch, (OriginalPtr + ImageDelta));
+                                Int64 OriginalPtr = BitConverter.ToInt64(moduleRemote, pPatch.ToInt32());
+                                BitConverter.GetBytes((OriginalPtr + ImageDelta)).CopyTo(moduleRemote, pPatch.ToInt32());
                             }
                         }
                         catch
@@ -199,9 +204,10 @@ namespace System
 
                 // Check for next block
                 pRelocTable = (IntPtr)((UInt64)pRelocTable + ibr.SizeOfBlock);
-                nextRelocTableBlock = GetValue<int>(pRelocTable);
+                nextRelocTableBlock = BitConverter.ToInt32(moduleRemote, pRelocTable.ToInt32());
             }
         }
+
 
         /// <summary>
         /// Rewrite IAT for manually mapped remote module.
@@ -210,7 +216,7 @@ namespace System
         /// <param name="PEINFO">Module meta data struct (PE.PE_META_DATA).</param>
         /// <param name="ModuleMemoryBase">Base address of the module in memory.</param>
         /// <returns>void</returns>
-        private void MMRewriteModuleIAT(PE_META_DATA PEINFO, IntPtr ModuleMemoryBase, byte[] moduleRaw)
+        private void __MMRewriteModuleIAT(PE_META_DATA PEINFO, IntPtr ModuleMemoryBase, byte[] moduleRaw, byte[] moduleRemote)
         {
             IMAGE_DATA_DIRECTORY idd = PEINFO.Is32Bit ? PEINFO.OptHeader32.ImportTable : PEINFO.OptHeader64.ImportTable;
 
@@ -222,7 +228,7 @@ namespace System
             }
 
             // Ptr for the base import directory
-            IntPtr pImportTable = (IntPtr)((UInt64)ModuleMemoryBase + idd.VirtualAddress);
+            IntPtr pImportTable = (IntPtr)(idd.VirtualAddress);
 
             // Get API Set mapping dictionary if on Win10+
             Native.OSVERSIONINFOEX OSVersion = new Native.OSVERSIONINFOEX();
@@ -232,7 +238,6 @@ namespace System
                 throw new Exception(DSTR(DSTR_OS_VERSION_TOO_OLD));
             }
 
-
 #if DEBUG
             DLog($"Starting IAT rewrite...");
 #endif
@@ -240,14 +245,14 @@ namespace System
             // Loop IID's
             int counter = 0;
             Native.IMAGE_IMPORT_DESCRIPTOR iid = new Native.IMAGE_IMPORT_DESCRIPTOR();
-            iid = GetStruct<Native.IMAGE_IMPORT_DESCRIPTOR>((IntPtr)((UInt64)pImportTable + (uint)(Marshal.SizeOf(iid) * counter)));
+            iid = moduleRemote.Skip(pImportTable.ToInt32() + (int)(Marshal.SizeOf(typeof(Native.IMAGE_IMPORT_DESCRIPTOR)) * counter)).Take(Marshal.SizeOf(typeof(Native.IMAGE_IMPORT_DESCRIPTOR))).ToArray().ToStruct<Native.IMAGE_IMPORT_DESCRIPTOR>();
             while (iid.Name != 0)
             {
                 // Get DLL
                 string DllName = string.Empty;
                 try
                 {
-                    DllName = GetString((IntPtr)((UInt64)ModuleMemoryBase + iid.Name));
+                    DllName = moduleRemote.String((int)iid.Name);
                 }
                 catch { }
 
@@ -300,11 +305,11 @@ namespace System
                     // Loop thunks
                     if (PEINFO.Is32Bit)
                     {
-                        IMAGE_THUNK_DATA32 oft_itd;
+                        IMAGE_THUNK_DATA32 oft_itd = new IMAGE_THUNK_DATA32();
                         for (int i = 0; true; i++)
                         {
-                            oft_itd = GetStruct<IMAGE_THUNK_DATA32>((UInt64)ModuleMemoryBase + iid.OriginalFirstThunk + (UInt32)(i * (sizeof(UInt32))));
-                            IntPtr ft_itd = (IntPtr)((UInt64)ModuleMemoryBase + iid.FirstThunk + (UInt64)(i * (sizeof(UInt32))));
+                            oft_itd = moduleRemote.Skip((int)(iid.OriginalFirstThunk + (UInt32)(i * (sizeof(UInt32))))).Take(4).ToArray().ToStruct<IMAGE_THUNK_DATA32>();
+                            IntPtr ft_itd = (IntPtr)((UInt64)iid.FirstThunk + (UInt64)(i * (sizeof(UInt32))));
                             if (oft_itd.AddressOfData == 0)
                             {
                                 break;
@@ -312,11 +317,12 @@ namespace System
 
                             if (oft_itd.AddressOfData < 0x80000000) // !IMAGE_ORDINAL_FLAG32
                             {
-                                IntPtr pImpByName = (IntPtr)((UInt64)ModuleMemoryBase + oft_itd.AddressOfData + sizeof(UInt16));
-                                var pFunc = GetProcAddress(sModule.ModuleName, GetString(pImpByName));
+                                uint pImpByName = (uint)((uint)oft_itd.AddressOfData + sizeof(UInt16));
+
+                                var pFunc = GetProcAddress(sModule.ModuleName, moduleRemote.String((int)pImpByName));
 
                                 // Write ProcAddress
-                                SetValue<int>(ft_itd, pFunc);
+                                BitConverter.GetBytes((int)pFunc).CopyTo(moduleRemote, ft_itd.ToInt32());
                             }
                             else
                             {
@@ -324,17 +330,17 @@ namespace System
                                 var pFunc = GetModuleExportAddress(sModule.ModuleName, (short)fOrdinal);
 
                                 // Write ProcAddress
-                                SetValue<int>(ft_itd, pFunc);
+                                BitConverter.GetBytes((int)pFunc).CopyTo(moduleRemote, ft_itd.ToInt32());
                             }
                         }
                     }
                     else
                     {
-                        IMAGE_THUNK_DATA64 oft_itd;
+                        IMAGE_THUNK_DATA64 oft_itd = new IMAGE_THUNK_DATA64();
                         for (int i = 0; true; i++)
                         {
-                            oft_itd = GetStruct<IMAGE_THUNK_DATA64>((IntPtr)((UInt64)ModuleMemoryBase + iid.OriginalFirstThunk + (UInt64)(i * (sizeof(UInt64)))));
-                            IntPtr ft_itd = (IntPtr)((UInt64)ModuleMemoryBase + iid.FirstThunk + (UInt64)(i * (sizeof(UInt64))));
+                            oft_itd = moduleRemote.Skip((int)(iid.OriginalFirstThunk + (uint)(i * sizeof(ulong)))).Take(8).ToArray().ToStruct<IMAGE_THUNK_DATA64>();
+                            IntPtr ft_itd = (IntPtr)((UInt64)iid.FirstThunk + (UInt64)(i * (sizeof(UInt64))));
                             if (oft_itd.AddressOfData == 0)
                             {
                                 break;
@@ -342,11 +348,11 @@ namespace System
 
                             if (oft_itd.AddressOfData < 0x8000000000000000) // !IMAGE_ORDINAL_FLAG64
                             {
-                                IntPtr pImpByName = (IntPtr)((UInt64)ModuleMemoryBase + oft_itd.AddressOfData + sizeof(UInt16));
-                                var pFunc = GetProcAddress(sModule.ModuleName, GetString(pImpByName));
+                                uint pImpByName = (uint)((uint)oft_itd.AddressOfData + sizeof(UInt16));
+                                var pFunc = GetProcAddress(sModule.ModuleName, moduleRemote.String((int)pImpByName));
 
                                 // Write pointer
-                                SetValue<long>(ft_itd, pFunc);
+                                BitConverter.GetBytes((long)pFunc).CopyTo(moduleRemote, ft_itd.ToInt32());
                             }
                             else
                             {
@@ -354,12 +360,12 @@ namespace System
                                 var pFunc = GetModuleExportAddress(sModule.ModuleName, (short)fOrdinal);
 
                                 // Write pointer
-                                SetValue<long>(ft_itd, pFunc);
+                                BitConverter.GetBytes((long)pFunc).CopyTo(moduleRemote, ft_itd.ToInt32());
                             }
                         }
                     }
                     counter++;
-                    iid = GetStruct<Native.IMAGE_IMPORT_DESCRIPTOR>((IntPtr)((UInt64)pImportTable + (uint)(Marshal.SizeOf(iid) * counter)));
+                    iid = moduleRemote.Skip(pImportTable.ToInt32() + (int)(Marshal.SizeOf(typeof(Native.IMAGE_IMPORT_DESCRIPTOR)) * counter)).Take(Marshal.SizeOf(typeof(Native.IMAGE_IMPORT_DESCRIPTOR))).ToArray().ToStruct<Native.IMAGE_IMPORT_DESCRIPTOR>();
                 }
             }
         }

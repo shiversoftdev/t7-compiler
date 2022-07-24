@@ -17,10 +17,11 @@ namespace System.Evasion
         internal static class ModuleConst
         {
             public static string CONST_KERNEL32 => ToSysDLL("kernel32.dll");
+            public static string CONST_NTDLL => ToSysDLL("ntdll.dll");
 
             private static string ToSysDLL(string relPath)
             {
-                return Path.Combine(Environment.GetFolderPath(Environment.Is64BitProcess ? Environment.SpecialFolder.System : Environment.SpecialFolder.SystemX86), relPath);
+                return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), relPath);
             }
         }
 
@@ -107,6 +108,8 @@ namespace System.Evasion
             return GetExportAddress(hModule, FunctionName);
         }
 
+        private static Dictionary<string, PointerEx> cached_lookups = new Dictionary<string, PointerEx>();
+
         /// <summary>
         /// Helper for getting the base address of a module loaded by the current process. This base
         /// address could be passed to GetProcAddress/LdrGetProcedureAddress or it could be used for
@@ -117,14 +120,20 @@ namespace System.Evasion
         /// <returns>IntPtr base address of the loaded module or IntPtr.Zero if the module is not found.</returns>
         public static IntPtr GetLoadedModuleAddress(string DLLName)
         {
+            if(cached_lookups.ContainsKey(DLLName))
+            {
+                return cached_lookups[DLLName];
+            }
+
             ProcessModuleCollection ProcModules = Process.GetCurrentProcess().Modules;
             foreach (ProcessModule Mod in ProcModules)
             {
                 if (Mod.FileName.ToLower().EndsWith(DLLName.ToLower()))
                 {
-                    return Mod.BaseAddress;
+                    return cached_lookups[DLLName] = Mod.BaseAddress;
                 }
             }
+
             return IntPtr.Zero;
         }
 

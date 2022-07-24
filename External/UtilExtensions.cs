@@ -119,7 +119,7 @@ namespace System
         /// <param name="buffer"></param>
         /// <param name="index"></param>
         /// <returns></returns>
-        public unsafe static string String(this byte[] buffer, PointerEx index = default)
+        public unsafe static string String(this byte[] buffer, int index = default)
         {
             fixed (byte* bytes = &buffer[index])
             {

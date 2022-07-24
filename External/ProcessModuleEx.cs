@@ -55,6 +55,8 @@ namespace System
             }
         }
 
+        public bool IsManualMapped { get; private set; }
+
         internal ProcessModuleEx(ProcessModule module)
         {
             BaseModule = module;
@@ -94,12 +96,12 @@ namespace System
             return ModuleExportsByOrdinal[exportOrdinal];
         }
 
-        private void CacheExports()
+        private void CacheExports(byte[] fileData = null)
         {
-            var TempFileBuffer = File.ReadAllBytes(ModulePath);
+            fileData = fileData ?? File.ReadAllBytes(ModulePath);
 
             // Parse the PE structure
-            PEImage sModule = new PEImage(TempFileBuffer);
+            PEImage sModule = new PEImage(fileData);
             foreach (var export in sModule.Exports.Get())
             {
                 ProcessModuleExportEx exportEx = new ProcessModuleExportEx(export.Name, export.RelativeAddress + BaseAddress, export.Ordinal, export.ForwarderString);
@@ -110,6 +112,14 @@ namespace System
                 ModuleExportsByOrdinal[export.Ordinal] = exportEx;
             }
             HasLoadedExports = true;
+        }
+
+        public static ProcessModuleEx FromMappedModule(PointerEx moduleHandle, byte[] moduleData)
+        {
+            ProcessModuleEx pmx = new ProcessModuleEx(moduleHandle, null);
+            pmx.CacheExports(moduleData);
+            pmx.IsManualMapped = true;
+            return pmx;
         }
 
         #region overrides
@@ -128,6 +138,14 @@ namespace System
             get
             {
                 return offset + BaseAddress;
+            }
+        }
+
+        public PointerEx this[string FunctionName]
+        {
+            get
+            {
+                return GetExportedFunction(FunctionName).AbsoluteAddress;
             }
         }
         #endregion
