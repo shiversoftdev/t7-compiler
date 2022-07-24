@@ -8,3 +8,4 @@ Scobalula for his original decompiler\
 SyGnUs for his CoD knowledge\
 Original Black Ops 2 Compiler crew for their research\
 Scrappy for livesplit builtin
+MFahim for assisting in identification of Nahimic OSD incompatibility.
