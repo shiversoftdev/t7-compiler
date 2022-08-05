@@ -34,12 +34,31 @@ namespace DebugCompiler
         private bool ClearHistory = false;
         private static string UpdatesURL = "https://gsc.dev/t7c_version";
         private static string UpdaterURL = "https://gsc.dev/t7c_updater";
+        private static string motdpath => Path.Combine(Application.StartupPath, "motd");
+        private const int motdHrsRemindClear = 4; // number of hours between reminding users about the message of the day.
+        static void motd()
+        {
+            var fi = new FileInfo(motdpath);
+            if (fi.Exists)
+            {
+                if((DateTime.Now - fi.LastWriteTimeUtc).TotalMinutes <= (60 * motdHrsRemindClear))
+                {
+                    return; // we dont want to spam users with artificial delays in the program. Lets be nice and only show the motd once every 4 hours.
+                }
+            }
+            File.WriteAllText(motdpath, "https://www.youtube.com/anthonything");
+            fi = new FileInfo(motdpath);
+            fi.LastWriteTimeUtc = DateTime.Now;
+            Console.WriteLine($"Message of the Day:\n\tEver wanted to shoot your friend with a thundergun?\n\tEver wondered what would happen if you could 1v1 with the origins staffs?\n\tNow you can! Zombie Blood Rush is a Black Ops III zombies mod that lets you kill other players.\n\tYour points are your health. Kill other players and zombies to race to 100K points. Play now: https://steamcommunity.com/sharedfiles/filedetails/?id=2696008055\n\n");
+            System.Threading.Thread.Sleep(4000);
+        }
         static void Main(string[] args)
         {
             try
             {
                 string lv = GetEmbeddedVersion();
-                Console.WriteLine($"T7/T8 Compiler version {lv}, by Serious");
+                Console.WriteLine($"T7/T8 Compiler version {lv}, by Serious\n");
+                motd();
                 ulong local_version = ParseVersion(lv);
                 ulong remote_version = 0;
                 Console.WriteLine($"Checking client version... (our version is {local_version:X})");
