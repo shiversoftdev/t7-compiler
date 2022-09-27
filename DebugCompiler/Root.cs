@@ -298,7 +298,7 @@ namespace DebugCompiler
                 return Error("Failed to read the file specified");
             }
             var path = args.Length > 2 ? args[2] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
-            PointerEx injresult = InjectScript(path, buffer, game);
+            PointerEx injresult = InjectScript(path, buffer, game, hotmode.none, false);
             Console.WriteLine();
             Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
             Console.WriteLine($"\t[{path}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
@@ -490,6 +490,8 @@ namespace DebugCompiler
 
             Platforms platform = Platforms.PC;
             Games game = Games.T7;
+            hotmode hot = hotmode.none;
+            bool noruntime = false;
 
             if (args.Length > 1)
             {
@@ -523,6 +525,15 @@ namespace DebugCompiler
                             {
                                 game = Games.T7;
                             }
+                            break;
+                        case "hot":
+                            if (!Enum.TryParse(split[1].ToLower().Trim(), true, out hot))
+                            {
+                                hot = hotmode.none;
+                            }
+                            break;
+                        case "noruntime":
+                            noruntime = split[1].ToLower().Trim() == "true";
                             break;
                     }
                 }
@@ -661,12 +672,12 @@ namespace DebugCompiler
 
             byte[] data = code.CompiledScript;
 
-            PointerEx injresult = InjectScript(replaceScript, code.CompiledScript, game);
+            PointerEx injresult = InjectScript(replaceScript, code.CompiledScript, game, hot, noruntime);
             Console.WriteLine();
             Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
             Console.WriteLine($"\t[{replaceScript}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
 
-            if (!injresult)
+            if (!injresult && hot == hotmode.none)
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
@@ -711,12 +722,12 @@ namespace DebugCompiler
         private int InjectedBuffSize;
         private T7SPT InjectedScript;
         private int OriginalPID = 0;
-        private int InjectScript(string replacePath, byte[] buffer, Games game)
+        private int InjectScript(string replacePath, byte[] buffer, Games game, hotmode hot, bool noruntime)
         {
             LastGameInjected = game;
             switch (game)
             {
-                case Games.T7: return InjectT7(replacePath, buffer);
+                case Games.T7: return InjectT7(replacePath, buffer, hot, noruntime);
                 case Games.T8: return InjectT8(replacePath, buffer);
             }
             return Error("Invalid game provided to inject.");
@@ -752,7 +763,14 @@ namespace DebugCompiler
             }
         }
 
-        private int InjectT7(string replacePath, byte[] buffer)
+        private enum hotmode
+        {
+            none,
+            csc,
+            gsc
+        }
+
+        private int InjectT7(string replacePath, byte[] buffer, hotmode hot, bool noruntime)
         {
             NoExcept(FreeT7Script);
             GSICInfo gsi = null;
@@ -812,12 +830,16 @@ namespace DebugCompiler
                 {
                     // find target
                     var name = bo3.GetString(entry.llpName);
-                    if (name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
+                    if (hot != hotmode.none || name.ToLower().Trim().Replace("\\", "/") == replacePath.ToLower().Trim().Replace("\\", "/"))
                     {
                         // cache target info
-                        llpModifiedSPTStruct = (ulong)(i * Marshal.SizeOf(typeof(T7SPT))) + sptGlob;
-                        llpOriginalBuffer = entry.lpBuffer;
-                        OriginalSourceChecksum = bo3.GetValue<int>(llpOriginalBuffer + 0x8);
+                        if(hot == hotmode.none)
+                        {
+                            llpModifiedSPTStruct = (ulong)(i * Marshal.SizeOf(typeof(T7SPT))) + sptGlob;
+                            llpOriginalBuffer = entry.lpBuffer;
+                            OriginalSourceChecksum = bo3.GetValue<int>(llpOriginalBuffer + 0x8);
+                        }
+                        
 
                         // patch script into memory
                         entry.lpBuffer = bo3.QuickAlloc(buffer.Length);
@@ -825,38 +847,84 @@ namespace DebugCompiler
                         bo3.SetBytes(entry.lpBuffer, buffer);
 
                         // patch spt struct
-                        bo3.SetStruct(llpModifiedSPTStruct, entry);
-
-                        // cache the struct data for uninjection
-                        InjectedScript = entry;
-                        InjectedBuffSize = buffer.Length;
-
-                        try
+                        if(hot == hotmode.none)
                         {
-                            string exeFilePath = Assembly.GetExecutingAssembly().Location;
-                            var result = bo3.Call<long>(bo3.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll"));
-                            Console.WriteLine($"LoadLibrary Result => {result:X}");
+                            bo3.SetStruct(llpModifiedSPTStruct, entry);
 
-                            bo3.Refresh();
-                            if (result <= 0)
+                            // cache the struct data for uninjection
+                            InjectedScript = entry;
+                            InjectedBuffSize = buffer.Length;
+                        }
+                        
+                        if(!noruntime)
+                        {
+                            try
                             {
-                                return (int)result;
-                            }
+                                string exeFilePath = Assembly.GetExecutingAssembly().Location;
+                                var result = bo3.Call<long>(bo3.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll"));
+                                Console.WriteLine($"LoadLibrary Result => {result:X}");
 
-                            bo3.Call<VOID>(bo3.GetProcAddress(@"t7cinternal.dll", @"RemoveDetours"));
-                            if (gsi != null)
-                            {
-                                // detours
-                                if (gsi.Detours.Count > 0)
+                                bo3.Refresh();
+                                if (result <= 0)
                                 {
-                                    bo3.Call<VOID>(bo3.GetProcAddress(@"t7cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)entry.lpBuffer);
+                                    return (int)result;
+                                }
+
+                                bo3.Call<VOID>(bo3.GetProcAddress(@"t7cinternal.dll", @"RemoveDetours"));
+                                if (gsi != null)
+                                {
+                                    // detours
+                                    if (gsi.Detours.Count > 0)
+                                    {
+                                        bo3.Call<VOID>(bo3.GetProcAddress(@"t7cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)entry.lpBuffer);
+                                    }
                                 }
                             }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e.ToString());
+                                return 3;
+                            }
                         }
-                        catch(Exception e)
+                        
+                        if(hot != hotmode.none)
                         {
-                            Console.WriteLine(e.ToString());
-                            return 3;
+                            // grab the asm buffer from resources, map and execute
+                            var assembly = Assembly.GetExecutingAssembly();
+                            var resourceName = "DebugCompiler.hotload.dat";
+                            byte[] hot_fn = new byte[0];
+                            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+                            {
+                                hot_fn = new byte[stream.Length];
+                                stream.Read(hot_fn, 0, (int)stream.Length);
+                            }
+                            var hFnHotload = bo3.QuickAlloc(hot_fn.Length, true);
+                            bo3.SetBytes(hFnHotload, hot_fn);
+
+                            byte[] error_data = new byte[4];
+                            try
+                            {
+                                bool result = bo3.Call<bool>(hFnHotload, entry.lpBuffer, (hot == hotmode.csc) ? 1 : 0, error_data);
+
+                                if (!result)
+                                {
+                                    int error = BitConverter.ToInt32(error_data, 0);
+                                    switch (error)
+                                    {
+                                        case 1:
+                                            Console.WriteLine("HOTLOAD: Invalid script");
+                                            break;
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Successfully hotloaded script!");
+                                }
+                            }
+                            catch(Exception e)
+                            {
+                                Console.WriteLine(e.ToString());
+                            }
                         }
 
                         return 0;

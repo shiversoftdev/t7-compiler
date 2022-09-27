@@ -64,26 +64,26 @@ namespace T7CompilerLib.ScriptComponents
                 throw new ArgumentException("Provided GSC file is not a valid T7 script; invalid magic");
 
             SourceChecksum = reader.ReadUInt32();
-            IncludeTableOffset = reader.ReadUInt32();
+            IncludeTableOffset = reader.ReadUInt32(); // 0xC
 
-            AnimTreeTableOffset = reader.ReadUInt32();
+            AnimTreeTableOffset = reader.ReadUInt32(); // 0x10
             ByteCodeOffset = reader.ReadUInt32();
             StringTableOffset = reader.ReadUInt32();
             DebugStringTableOffset = reader.ReadUInt32();
 
-            ExportTableOffset = reader.ReadUInt32();
+            ExportTableOffset = reader.ReadUInt32(); // 0x20
             ImportTableOffset = reader.ReadUInt32();
             FixupTableOffset = reader.ReadUInt32();
             ProfileTableOffset = reader.ReadUInt32();
 
-            ByteCodeSize = reader.ReadUInt32();
+            ByteCodeSize = reader.ReadUInt32(); // 0x30
             NameOffset = (Endianess == EndianType.LittleEndian) ? reader.ReadUInt32() : reader.ReadUInt16(); //alignment fix for xbox
             StringCount = reader.ReadUInt16();
             ExportsCount = reader.ReadUInt16();
             ImportsCount = reader.ReadUInt16();
             FixupCount = reader.ReadUInt16();
 
-            ProfileCount = reader.ReadUInt16();
+            ProfileCount = reader.ReadUInt16(); // 0x40
             DebugStringCount = reader.ReadUInt16();
             IncludeCount = reader.ReadByte();
             AnimTreeCount = reader.ReadByte();

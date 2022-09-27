@@ -121,6 +121,9 @@
       <Name>TreyarchCompiler</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="hotload.dat" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>xcopy /y "$(SolutionDir)$(PlatformName)\Release\t7cinternal.dll" "$(TargetDir)"
