@@ -3,6 +3,7 @@
 #include "builtins.h"
 #include "detours.h"
 #include "Opcodes.h"
+#include "offsets.h"
 #include "winternl.h"
 
 BOOL APIENTRY DllMain( HMODULE hModule,
@@ -25,15 +26,13 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     return TRUE;
 }
 
-#define LOCALOFF(x) (*(__int64*)((char*)(NtCurrentTeb()->ProcessEnvironmentBlock) + 0x10) + (__int64)(x))
-#define PRIMECOUNT(inst) *(__int32*)(LOCALOFF(0x50F1B60) + 4 * inst)
-#define PRIMEINFOATINDEX(inst, index) (char*)*(__int64*)(LOCALOFF(0x50DE2E0) + 8 * (10 * (500 * inst + index)))
-#define _Scr_GscObjLinkInternal(inst, obj) ((void(__fastcall*)(__int32, const char*))(LOCALOFF(0x12CC300)))(inst, obj)
-#define _SL_GetString(str, user, type) ((__int32(__fastcall*)(const char*, __int32, __int32))LOCALOFF(0x12D7B20))(str, user, type)
-#define _SL_TransferRefToUser(scrStr, user) ((void(__fastcall*)(__int32, __int32))LOCALOFF(0x12D8C60))(scrStr, user)
-#define _GscObjResolve(inst, obj) ((void(__fastcall*)(__int32, const char*, __int32))LOCALOFF(0x12CA2B0))(inst, obj, 0)
-#define _Scr_ExecThread(inst, func, pcount, val, self) ((__int32(__fastcall*)(__int32, void*, __int32, void*, __int32))LOCALOFF(0x12EA770))(inst, func, pcount, val, self)
-#define _Scr_FreeThread(inst, thread) ((__int32(__fastcall*)(__int32, __int32))LOCALOFF(0x12EAB50))(inst, thread)
+#define PRIMECOUNT(inst) *(__int32*)(REBASE(0x50EFB60) + 4 * inst)
+#define PRIMEINFOATINDEX(inst, index) (char*)*(__int64*)(REBASE(0x50DC2E0) + 8 * (10 * (500 * inst + index)))
+#define _SL_GetString(str, user, type) ((__int32(__fastcall*)(const char*, __int32, __int32))REBASE(0x12D7B20))(str, user, type)
+#define _SL_TransferRefToUser(scrStr, user) ((void(__fastcall*)(__int32, __int32))REBASE(0x12D8C60))(scrStr, user)
+#define _GscObjResolve(inst, obj) ((void(__fastcall*)(__int32, const char*, __int32))REBASE(0x12CA2B0))(inst, obj, 0)
+#define _Scr_ExecThread(inst, func, pcount, val, self) ((__int32(__fastcall*)(__int32, void*, __int32, void*, __int32))REBASE(0x12EA770))(inst, func, pcount, val, self)
+#define _Scr_FreeThread(inst, thread) ((__int32(__fastcall*)(__int32, __int32))REBASE(0x12EAB50))(inst, thread)
 #define HOTLOAD_ERROR_BADBUFF 1
 #pragma optimize("off")
 EXPORT bool HotloadScript(const char* buff, int vm, int* error)
@@ -45,15 +44,16 @@ EXPORT bool HotloadScript(const char* buff, int vm, int* error)
         return false;
     }
 
-    // link all the includes using the builtin scrobjlink.
-    const __int32* includesPtr = (const __int32*)(*(__int32*)(buff + 0xC) + buff);
-    int numIncludes = *(char*)(buff + 0x44);
+    // there is literally no point in doing this when hotloading
+    //// link all the includes using the builtin scrobjlink.
+    //const __int32* includesPtr = (const __int32*)(*(__int32*)(buff + 0xC) + buff);
+    //int numIncludes = *(char*)(buff + 0x44);
 
-    for (int i = 0; i < numIncludes; i++)
-    {
-        _Scr_GscObjLinkInternal(vm, *includesPtr + buff);
-        includesPtr++;
-    }
+    //for (int i = 0; i < numIncludes; i++)
+    //{
+    //    _Scr_GscObjLinkInternal(vm, *includesPtr + buff);
+    //    includesPtr++;
+    //}
 
     // link strings
     const char* stringsPtr = *(__int32*)(0x18 + buff) + buff;
@@ -86,7 +86,6 @@ EXPORT bool HotloadScript(const char* buff, int vm, int* error)
 
     for (int i = 0; i < numExports; i++)
     {
-        // *(__int32*)(exportsPtr + 0x4) + buff
         char flags = *(exportsPtr + 17);
 
         if (flags & 0x2) // autoexec

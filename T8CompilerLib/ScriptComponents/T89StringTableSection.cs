@@ -27,7 +27,12 @@ namespace T89CompilerLib.ScriptComponents
 
         public override ushort Count()
         {
-            return (ushort)TableEntries.Keys.Count;
+            ushort count = 0;
+            foreach(var entry in TableEntries)
+            {
+                count += (ushort)(entry.Value.References.Count / 255 + 1);
+            }
+            return count;
         }
 
         public override byte[] Serialize()
@@ -40,20 +45,24 @@ namespace T89CompilerLib.ScriptComponents
 
             foreach (string s in TableEntries.Keys)
             {
-                CurrentString += ((uint)TableEntries[s].References.Count * 4) + 8;
+                CurrentString += ((uint)TableEntries[s].References.Count * 4) + (uint)(8 * (TableEntries[s].References.Count / 255 + 1));
             }
-
-            //TODO: dupe entry writer. they didnt increase to a short in this game because that makes too much sense, so we have to do what we did in bo2.
+   
             foreach (string s in TableEntries.Keys)
             {
-                writer.Write(CurrentString + Base); //4
-                writer.Write((byte)TableEntries[s].References.Count); //1
-                writer.Write((byte)0); //1
-                writer.Write((ushort)0); //2
+                int count = TableEntries[s].References.Count;
 
-                foreach (var reference in TableEntries[s].References)
+                while(count > 0)
                 {
-                    writer.Write(reference.GetCommitDataAddress());
+                    writer.Write(CurrentString + Base); //4
+                    writer.Write((byte)Math.Min(count, 255)); //1
+                    writer.Write((byte)0); //1
+                    writer.Write((ushort)0); //2
+
+                    for(int i = 0; i < 255 && count > 0; i++, count--)
+                    {
+                        writer.Write(TableEntries[s].References[count - 1].GetCommitDataAddress());
+                    }
                 }
 
                 uint CachedLocation = (uint)writer.BaseStream.Position;
@@ -74,10 +83,9 @@ namespace T89CompilerLib.ScriptComponents
         public override uint Size()
         {
             uint count = 0;
-            //TODO mod this to work with dupe emitter
             foreach(string s in TableEntries.Keys)
             {
-                count += (uint)s.Length + 1 + 8 + 2; //null terminated + header + prefix
+                count += (uint)s.Length + 1 + (uint)(8 * (TableEntries[s].References.Count / 255 + 1)) + 2; //null terminated + header + prefix
                 count += (uint)TableEntries[s].References.Count * 4; //uint * count
             }
 
@@ -185,7 +193,7 @@ namespace T89CompilerLib.ScriptComponents
     public sealed class T89StringTableEntry
     {
         internal T89StringTableEntry() { }
-        public HashSet<T89OP_GetString> References = new HashSet<T89OP_GetString>();
+        public List<T89OP_GetString> References = new List<T89OP_GetString>();
         public string Value;
     }
 }

@@ -818,9 +818,9 @@ namespace DebugCompiler
             bo3.OpenHandle();
             bo3.SetDefaultCallType(ExCallThreadType.XCTT_QUAPC);
             OriginalPID = bo3.BaseProcess.Id;
-            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3[0x9409AB0]}");
-            var sptGlob = bo3.GetValue<ulong>(bo3[0x9409AB0]);
-            var sptCount = bo3.GetValue<int>(bo3[0x9409AB0 + 0x14]);
+            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3[0x9407AB0]}");
+            var sptGlob = bo3.GetValue<ulong>(bo3[0x9407AB0]);
+            var sptCount = bo3.GetValue<int>(bo3[0x9407AB0 + 0x14]);
             var SPTEntries = bo3.GetArray<T7SPT>(sptGlob, sptCount);
             for (int i = 0; i < SPTEntries.Length; i++)
             {
@@ -990,9 +990,9 @@ namespace DebugCompiler
 
             bo4.OpenHandle();
             OriginalPID = bo4.BaseProcess.Id;
-            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo4[0x912BBB0]}");
-            var sptGlob = bo4.GetValue<ulong>(bo4[0x912BBB0]);
-            var sptCount = bo4.GetValue<int>(bo4[0x912BBB0 + 0x14]);
+            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo4[0x912ABB0]}");
+            var sptGlob = bo4.GetValue<ulong>(bo4[0x912ABB0]);
+            var sptCount = bo4.GetValue<int>(bo4[0x912ABB0 + 0x14]);
             var SPTEntries = bo4.GetArray<T8SPT>(sptGlob, sptCount);
             replacePath = replacePath.ToLower().Trim().Replace("\\", "/");
             var surrogateScript = T8s64Hash(replacePath); // script we are hooking

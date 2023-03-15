@@ -35,13 +35,32 @@ bool ScriptDetours::DetoursLinked = false;
 bool ScriptDetours::DetoursReset = true;
 bool ScriptDetours::DetoursEnabled = false;
 
-EXPORT void ResetDetours()
+bool _IsBadReadPtr(void* p)
+{
+	MEMORY_BASIC_INFORMATION mbi = { 0 };
+	if (::VirtualQuery(p, &mbi, sizeof(mbi)))
+	{
+		DWORD mask = (PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY);
+		bool b = !(mbi.Protect & mask);
+		// check the page is not a guard page
+		if (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) b = true;
+
+		return b;
+	}
+	return true;
+}
+
+void ScriptDetours::ResetDetours()
 {
 #ifdef DETOUR_LOGGING
-	GSCBuiltins::nlog("Resetting detours...");
+	ALOG("Resetting detours...");
 #endif
 	for (auto it = ScriptDetours::AppliedFixups.begin(); it != ScriptDetours::AppliedFixups.end(); it++)
 	{
+		if (_IsBadReadPtr(it->first))
+		{
+			continue;
+		}
 		*it->first = it->second;
 	}
 	ScriptDetours::AppliedFixups.clear();
@@ -50,16 +69,31 @@ EXPORT void ResetDetours()
 	ScriptDetours::DetoursEnabled = false;
 }
 
+void ScriptDetours::RegisterRuntimeDetour(INT64 hFixup, INT32 replaceFunc, INT32 replaceNS, const char* replaceName, char* fPosOrNull)
+{
+	ScriptDetour* detour = new ScriptDetour();
+	detour->hFixup = hFixup;
+	detour->ReplaceFunction = replaceFunc;
+	detour->ReplaceNamespace = replaceNS;
+	detour->FixupSize = 0;
+	memcpy_s(detour->ReplaceScriptName, sizeof(detour->ReplaceScriptName), replaceName, strlen(replaceName) + 1);
+	ScriptDetours::RegisteredDetours.push_back(detour);
+	if (fPosOrNull)
+	{
+		LinkedDetours[(INT64)fPosOrNull] = detour; // skip relinking if we dont have to!
+	}
+}
+
 EXPORT void RemoveDetours()
 {
 #ifdef DETOUR_LOGGING
-	GSCBuiltins::nlog("Removing detours...");
+	ALOG("Removing detours...");
 #endif
 	for (auto it = ScriptDetours::RegisteredDetours.begin(); it != ScriptDetours::RegisteredDetours.end(); it++)
 	{
 		free(*it);
 	}
-	ResetDetours();
+	ScriptDetours::ResetDetours();
 	ScriptDetours::RegisteredDetours.clear();
 	ScriptDetours::DetoursLinked = false;
 }
@@ -68,9 +102,9 @@ EXPORT bool RegisterDetours(void* DetourData, int NumDetours, INT64 scriptOffset
 {
 	RemoveDetours();
 	ScriptDetours::GSC_OBJ = (char*)scriptOffset;
-	
+
 #ifdef DETOUR_LOGGING
-	GSCBuiltins::nlog("Registering %d detours in script %p...", NumDetours, scriptOffset);
+	ALOG("Registering %d detours in script %p...", NumDetours, scriptOffset);
 #endif
 
 	INT64 base = (INT64)DetourData;
@@ -83,7 +117,7 @@ EXPORT bool RegisterDetours(void* DetourData, int NumDetours, INT64 scriptOffset
 		detour->ReplaceNamespace = read_detour->ReplaceNamespace;
 		detour->FixupSize = read_detour->FixupSize;
 #ifdef DETOUR_LOGGING
-		GSCBuiltins::nlog("Detour Parsed: {FixupName:%x, ReplaceNamespace:%x, ReplaceFunction:%x, FixupOffset:%x, FixupSize:%x} {FixupMin:%p, FixupMax:%p}", read_detour->FixupName, read_detour->ReplaceNamespace, read_detour->ReplaceFunction, read_detour->FixupOffset, read_detour->FixupSize, detour->hFixup, detour->hFixup + detour->FixupSize);
+		ALOG("Detour Parsed: {FixupName:%x, ReplaceNamespace:%x, ReplaceFunction:%x, FixupOffset:%x, FixupSize:%x} {FixupMin:%p, FixupMax:%p}", read_detour->FixupName, read_detour->ReplaceNamespace, read_detour->ReplaceFunction, read_detour->FixupOffset, read_detour->FixupSize, detour->hFixup, detour->hFixup + detour->FixupSize);
 #endif
 		memcpy_s(detour->ReplaceScriptName, sizeof(detour->ReplaceScriptName), (void*)((INT64)read_detour + sizeof(ReadScriptDetour)), 256 - sizeof(ReadScriptDetour));
 		ScriptDetours::RegisteredDetours.push_back(detour);
@@ -95,10 +129,6 @@ EXPORT bool RegisterDetours(void* DetourData, int NumDetours, INT64 scriptOffset
 
 void ScriptDetours::InstallHooks()
 {
-#ifdef DETOUR_LOGGING
-	GSCBuiltins::nlog("Installing hooks...");
-#endif
-
 	// initialize methods
 	Scr_GetFunction = (tScr_GetFunction)OFF_Scr_GetFunction;
 	Scr_GetMethod = (tScr_GetMethod)OFF_Scr_GetMethod;
@@ -106,28 +136,19 @@ void ScriptDetours::InstallHooks()
 	Scr_GscObjLink = (tScr_GscObjLink)OFF_Scr_GscObjLink;
 
 	// opcodes to hook:
-	VTableReplace(0x12D0890, VM_OP_GetFunction, &VM_OP_GetFunction_Old);
-	VTableReplace(0x12D0A30, VM_OP_GetAPIFunction, &VM_OP_GetAPIFunction_Old);
-	VTableReplace(0x12CEE80, VM_OP_ScriptFunctionCall, &VM_OP_ScriptFunctionCall_Old);
-	VTableReplace(0x12CF1D0, VM_OP_ScriptMethodCall, &VM_OP_ScriptMethodCall_Old);
-	VTableReplace(0x12CFB10, VM_OP_ScriptThreadCall, &VM_OP_ScriptThreadCall_Old);
-	VTableReplace(0x12CF570, VM_OP_ScriptMethodThreadCall, &VM_OP_ScriptMethodThreadCall_Old);
-	VTableReplace(0x12CE460, VM_OP_CallBuiltin, &VM_OP_CallBuiltin_Old);
-	VTableReplace(0x12CE3A0, VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
+	VTableReplace((0x12D0890), VM_OP_GetFunction, &VM_OP_GetFunction_Old);
+	VTableReplace((0x12D0A30), VM_OP_GetAPIFunction, &VM_OP_GetAPIFunction_Old);
+	VTableReplace((0x12CEE80), VM_OP_ScriptFunctionCall, &VM_OP_ScriptFunctionCall_Old);
+	VTableReplace((0x12CF1D0), VM_OP_ScriptMethodCall, &VM_OP_ScriptMethodCall_Old);
+	VTableReplace((0x12CFB10), VM_OP_ScriptThreadCall, &VM_OP_ScriptThreadCall_Old);
+	VTableReplace((0x12CF570), VM_OP_ScriptMethodThreadCall, &VM_OP_ScriptMethodThreadCall_Old);
+	VTableReplace((0x12CE460), VM_OP_CallBuiltin, &VM_OP_CallBuiltin_Old);
+	VTableReplace((0x12CE3A0), VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
 }
 
 INT64 ScriptDetours::FindScriptParsetree(char* name)
 {
-	SPTEntry* currentSpt = (SPTEntry*)*(INT64*)OFFSET(0x9409AB0);
-	INT32 sptCount = *(INT32*)OFFSET(0x9409AB0 + 0x14);
-	for (int i = 0; i < sptCount; i++, currentSpt++)
-	{
-		if (!currentSpt->Name) continue;
-		if (!currentSpt->buffSize) continue;
-		if (strcmp(currentSpt->Name, name)) continue;
-		return (INT64)currentSpt;
-	}
-	return 0;
+	return DB_FindXAssetHeader(0x36, name, false, 0);
 }
 
 void ScriptDetours::LinkDetours()
@@ -139,20 +160,20 @@ void ScriptDetours::LinkDetours()
 		if (detour->ReplaceScriptName[0]) // not a builtin
 		{
 #ifdef DETOUR_LOGGING
-			GSCBuiltins::nlog("Linking replacement %x<%s>::%x...", detour->ReplaceNamespace, detour->ReplaceScriptName, detour->ReplaceFunction);
+			ALOG("Linking replacement %x<%s>::%x...", detour->ReplaceNamespace, detour->ReplaceScriptName, detour->ReplaceFunction);
 #endif
 			// locate the script to replace
 			auto asset = FindScriptParsetree(detour->ReplaceScriptName);
 			if (!asset)
 			{
 #ifdef DETOUR_LOGGING
-				GSCBuiltins::nlog("Failed to locate %s...", detour->ReplaceScriptName);
+				ALOG("Failed to locate %s...", detour->ReplaceScriptName);
 #endif
 				continue;
 			}
 
 #ifdef DETOUR_LOGGING
-			GSCBuiltins::nlog("Located xAssetHeader...");
+			ALOG("Located xAssetHeader...");
 #endif
 			// locate the target export to link
 			auto buffer = *(char**)(asset + 0x10);
@@ -171,7 +192,7 @@ void ScriptDetours::LinkDetours()
 					continue;
 				}
 #ifdef DETOUR_LOGGING
-				GSCBuiltins::nlog("Found export at %p!", (INT64)buffer + currentExport->bytecodeOffset);
+				ALOG("Found export at %p!", (INT64)buffer + currentExport->bytecodeOffset);
 #endif
 				LinkedDetours[(INT64)buffer + currentExport->bytecodeOffset] = detour;
 				break;
@@ -180,7 +201,7 @@ void ScriptDetours::LinkDetours()
 		else
 		{
 #ifdef DETOUR_LOGGING
-			GSCBuiltins::nlog("Linking replacement for builtin %x...", detour->ReplaceFunction);
+			ALOG("Linking replacement for builtin %x...", detour->ReplaceFunction);
 #endif
 			INT32 discardType;
 			INT32 discardMinParams;
@@ -193,7 +214,7 @@ void ScriptDetours::LinkDetours()
 			if (hReplace)
 			{
 #ifdef DETOUR_LOGGING
-				GSCBuiltins::nlog("Found function definition at %p!", hReplace);
+				ALOG("Found function definition at %p!", hReplace);
 #endif
 				LinkedDetours[hReplace] = detour;
 			}
@@ -204,10 +225,20 @@ void ScriptDetours::LinkDetours()
 
 void ScriptDetours::VTableReplace(INT32 sub_offset, tVM_Opcode ReplaceFunc, tVM_Opcode* OutOld)
 {
-	INT64 stub_final = OFFSET(sub_offset);
+	INT64 stub_final = REBASE(sub_offset);
 	INT64 handler_table = OFF_ScrVm_Opcodes;
 	*OutOld = (tVM_Opcode)stub_final;
-	for (int i = 0; i < 0x4000; i++)
+	for (int i = 0; i < 0x2000; i++)
+	{
+		if (*(INT64*)(handler_table + (i * 8)) == stub_final)
+		{
+			*(INT64*)(handler_table + (i * 8)) = (INT64)ReplaceFunc;
+		}
+	}
+
+	handler_table = OFF_ScrVm_Opcodes2;
+
+	for (int i = 0; i < 0x2000; i++)
 	{
 		if (*(INT64*)(handler_table + (i * 8)) == stub_final)
 		{
@@ -309,7 +340,7 @@ bool ScriptDetours::CheckDetour(INT32 inst, INT64* fs_0, INT32 offset)
 		if (LinkedDetours[ptrval]->hFixup > fs_pos || ((LinkedDetours[ptrval]->hFixup + LinkedDetours[ptrval]->FixupSize) <= fs_pos))
 		{
 #ifdef DETOUR_LOGGING
-			GSCBuiltins::nlog("Replaced call at %p to fixup %p! Opcode: %x", (INT64)((*fs_0 + 7 + offset) & 0xFFFFFFFFFFFFFFF8), LinkedDetours[ptrval]->hFixup, *(INT16*)(*fs_0 - 2));
+			ALOG("Replaced call at %p to fixup %p! Opcode: %x", (INT64)((*fs_0 + 7 + offset) & 0xFFFFFFFFFFFFFFF8), LinkedDetours[ptrval]->hFixup, *(INT16*)(*fs_0 - 2));
 #endif
 			AppliedFixups[(INT64*)((*fs_0 + 7 + offset) & 0xFFFFFFFFFFFFFFF8)] = ptrval;
 			*(INT64*)((*fs_0 + 7 + offset) & 0xFFFFFFFFFFFFFFF8) = LinkedDetours[ptrval]->hFixup;

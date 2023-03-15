@@ -35,7 +35,9 @@ typedef INT64(__fastcall* tScr_GetMethod)(INT32 canonID, INT32* type, INT32* min
 typedef INT64(__fastcall* tDB_FindXAssetHeader)(int type, char* name, bool errorIfMissing, int waitTime);
 typedef INT64(__fastcall* tScr_GscObjLink)(int inst, char* gsc_obj);
 
-// #define DETOUR_LOGGING
+//#define DETOUR_LOGGING
+
+EXPORT bool RegisterDetours(void* DetourData, int NumDetours, INT64 scriptOffset);
 
 class ScriptDetours
 {
@@ -50,6 +52,8 @@ public:
 	static char* GSC_OBJ;
 	static void InstallHooks();
 	static void LinkDetours();
+	static void ResetDetours();
+	static void RegisterRuntimeDetour(INT64 hFixup, INT32 replaceFunc, INT32 replaceNS, const char* replaceScriptName, char* fPosOrNull);
 
 private:
 	static void VTableReplace(INT32 sub_offset, tVM_Opcode ReplaceFunc, tVM_Opcode* OutOld);
