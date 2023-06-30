@@ -29,7 +29,7 @@ namespace DebugCompiler
             internal string CommandName;
             internal CommandHandler Exec;
         }
-        private delegate int CommandHandler(string[] args);
+        private delegate int CommandHandler(string[] args, string[] opts);
         private Dictionary<ConsoleKey, CommandInfo> CommandTable = new Dictionary<ConsoleKey, CommandInfo>();
         private bool ClearHistory = false;
         private static string UpdatesURL = "https://gsc.dev/t7c_version";
@@ -52,53 +52,56 @@ namespace DebugCompiler
             Console.WriteLine($"Message of the Day:\n\tEver wanted to shoot your friend with a thundergun?\n\tEver wondered what would happen if you could 1v1 with the origins staffs?\n\tNow you can! Zombie Blood Rush is a Black Ops III zombies mod that lets you kill other players.\n\tYour points are your health. Kill other players and zombies to race to 100K points. Play now: https://steamcommunity.com/sharedfiles/filedetails/?id=2696008055\n\n");
             System.Threading.Thread.Sleep(4000);
         }
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            try
+            ParseCmdArgs(args, out string[] arguments, out string[] options);
+
+            string lv = GetEmbeddedVersion();
+            Console.WriteLine($"T7/T8 Compiler version {lv}, by Serious\n");
+
+            if (!options.Contains("--noupdate"))
             {
-                string lv = GetEmbeddedVersion();
-                Console.WriteLine($"T7/T8 Compiler version {lv}, by Serious\n");
-                motd();
-                ulong local_version = ParseVersion(lv);
-                ulong remote_version = 0;
-                Console.WriteLine($"Checking client version... (our version is {local_version:X})");
-                using (WebClient client = new WebClient())
+                try
                 {
-                    string downloadString = client.DownloadString(UpdatesURL);
-                    remote_version = ParseVersion(downloadString.ToLower().Trim());
-                }
-                if(local_version < remote_version)
-                {
-                    Console.WriteLine("Client out of date, downloading installer...");
-                    string filename = Path.Combine(Path.GetTempPath(), "t7c_installer.exe");
-                    if(File.Exists(filename)) File.Delete(filename);
-                    using(WebClient client = new WebClient())
+                    motd();
+                    ulong local_version = ParseVersion(lv);
+                    ulong remote_version = 0;
+                    Console.WriteLine($"Checking client version... (our version is {local_version:X})");
+                    using (WebClient client = new WebClient())
                     {
-                        client.DownloadFile(UpdaterURL, filename);
+                        string downloadString = client.DownloadString(UpdatesURL);
+                        remote_version = ParseVersion(downloadString.ToLower().Trim());
                     }
-                    Console.WriteLine("Installing update... Please wait for a confirmation window to pop up before attempting to inject again...");
-                    Process.Start(filename, "--install_silent");
-                    Environment.Exit(0);
+                    if (local_version < remote_version)
+                    {
+                        Console.WriteLine("Client out of date, downloading installer...");
+                        string filename = Path.Combine(Path.GetTempPath(), "t7c_installer.exe");
+                        if (File.Exists(filename)) File.Delete(filename);
+                        using (WebClient client = new WebClient())
+                        {
+                            client.DownloadFile(UpdaterURL, filename);
+                        }
+                        Console.WriteLine("Installing update... Please wait for a confirmation window to pop up before attempting to inject again...");
+                        Process.Start(filename, "--install_silent");
+                        return 0;
+                    }
+                } catch
+                {
+                    // we dont care if we cant update tbf
+                    Console.WriteLine($"Error updating client... ignoring update");
                 }
-            }
-            catch
-            {
-                // we dont care if we cant update tbf
-                Console.WriteLine($"Error updating client... ignoring update");
             }
 
 
             Root root = new Root();
-            if (args.Length > 0 && args[0] == "--build")
+            if (options.Contains("--build") || options.Contains("--compile"))
             {
-                root.cmd_Compile(new string[] { "scripts", "pc", null, "false", "--build" });
-                return;
+                return root.cmd_Compile(arguments, options);
             }
 
-            if (args.Length > 3 && args[0] == "--inject")
+            if (args.Length > 2 && options.Contains("--inject"))
             {
-                root.cmd_Inject(new string[] { args[1], args[2], args[3]});
-                return;
+                return root.cmd_Inject(args, options);
             }
 
             root.AddCommand(ConsoleKey.Q, "Quit Program", root.cmd_Exit);
@@ -213,6 +216,31 @@ namespace DebugCompiler
             }
         }
 
+        private static void ParseCmdArgs(string[] argv, out string[] arguments, out string[] options)
+        {
+            List<string> opts = new List<string>();
+            List<string> args = new List<string>();
+
+            foreach (string arg in argv)
+            {
+                if (arg == null || arg.Length == 0)
+                {
+                    continue;
+                }
+
+                if (arg[0] != '-')
+                {
+                    args.Add(arg);
+                } else
+                {
+                    opts.Add(arg);
+                }
+            }
+
+            arguments = args.ToArray();
+            options = opts.ToArray();
+        }
+
         private void AddCommand(ConsoleKey key, string CmdName = "Unknown Command", CommandHandler cex = null)
         {
             if (CommandTable.ContainsKey(key) || cex == null)
@@ -230,7 +258,8 @@ namespace DebugCompiler
             string args = Console.ReadLine().Trim();
             Success(args);
 
-            int ret = CommandTable[cmd].Exec.Invoke(ParseArgs(args, ' ', '"').ToArray());
+            ParseCmdArgs(ParseArgs(args, ' ', '"').ToArray(), out string[] arguments, out string[] options);
+            int ret = CommandTable[cmd].Exec.Invoke(arguments, options);
             Console.WriteLine("Press any key to continue...");
             Console.ReadKey(false);
             Console.WriteLine();
@@ -267,7 +296,7 @@ namespace DebugCompiler
            
         }
 
-        private int cmd_Inject(string[] args)
+        private int cmd_Inject(string[] args, string[] opts)
         {
             if(args.Length < 1)
             {
@@ -318,17 +347,17 @@ namespace DebugCompiler
             return 0;
         }
 
-        private int cmd_DumpEmptySlots(string[] args)
+        private int cmd_DumpEmptySlots(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_migrateMap(string[] args)
+        private int cmd_migrateMap(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_ExtractStrings(string[] args)
+        private int cmd_ExtractStrings(string[] args, string[] opts)
         {
             return -1;
         }
@@ -341,17 +370,17 @@ namespace DebugCompiler
             }
         }
 
-        private int cmd_Collect(string[] args)
+        private int cmd_Collect(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_Automap(string[] args)
+        private int cmd_Automap(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_HashString(string[] args)
+        private int cmd_HashString(string[] args, string[] opts)
         {
             if (args.Length != 2 && args.Length != 4)
                 return Error("Invalid arguments");
@@ -419,17 +448,17 @@ namespace DebugCompiler
         }
 
 
-        private int cmd_GenerateHashMap(string[] args)
+        private int cmd_GenerateHashMap(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_Permute(string[] args)
+        private int cmd_Permute(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_StatDump(string[] args)
+        private int cmd_StatDump(string[] args, string[] opts)
         {
             return -1;
         }
@@ -442,13 +471,13 @@ namespace DebugCompiler
             return tok;
         }
 
-        private int cmd_Exit(string[] args)
+        private int cmd_Exit(string[] args, string[] opts)
         {
             Environment.Exit(0);
             return 0;
         }
 
-        private int cmd_ToggleNoClear(string[] args)
+        private int cmd_ToggleNoClear(string[] args, string[] opts)
         {
             ClearHistory = !ClearHistory;
 
@@ -457,12 +486,12 @@ namespace DebugCompiler
             return 0;
         }
 
-        private int cmd_MapFileNS(string[] args)
+        private int cmd_MapFileNS(string[] args, string[] opts)
         {
             return -1;
         }
 
-        private int cmd_IncludeMapper(string[] args)
+        private int cmd_IncludeMapper(string[] args, string[] opts)
         {
             return -1;
         }
@@ -477,21 +506,35 @@ namespace DebugCompiler
             public Dictionary<int, (int CStart, int CEnd)> LineMappings = new Dictionary<int, (int CStart, int CEnd)>();
         }
 
-        private int cmd_Compile(string[] args)
+        private int cmd_Compile(string[] args, string[] opts)
         {
-            if (args.Length < 1)
-                return Error("Invalid arguments");
-
-            if (!Directory.Exists(args[0]))
-                return Error("Path is either not a directory or does not exist");
 
             List<string> conditionalSymbols = new List<string>();
             string replaceScript = null;
+            string scriptLocation = args.Length > 0 ? args[0] : "scripts";
 
             Platforms platform = Platforms.PC;
             Games game = Games.T7;
             hotmode hot = hotmode.none;
             bool noruntime = false;
+            bool buildScript = false;
+            bool compileOnly = false;
+
+            foreach (string opt in opts)
+            {
+                if (opt == "--build")
+                {
+                    buildScript = true;
+                }
+                else if (opt == "--compile")
+                {
+                    compileOnly = true;
+                }
+                else if (opt.Length > 2 && opt[1] == 'D')
+                { // -Dsomething
+                    conditionalSymbols.Add(opt.Substring(2));
+                }
+            }
 
             if (args.Length > 1)
             {
@@ -520,6 +563,9 @@ namespace DebugCompiler
                         case "script":
                             replaceScript = split[1].ToLower().Trim().Replace("\\", "/");
                             break;
+                        case "scriptlocation":
+                            scriptLocation = split[1];
+                            break;
                         case "game":
                             if (!Enum.TryParse(split[1].ToLower().Trim().Replace("\\", "/"), true, out game))
                             {
@@ -539,6 +585,9 @@ namespace DebugCompiler
                 }
             }
 
+            if (!Directory.Exists(scriptLocation))
+                return Error($"Script location is either not a directory or does not exist {args[0]}");
+
             bool isT7 = game == Games.T7;
 
             //if (args.Length > 1)
@@ -555,10 +604,10 @@ namespace DebugCompiler
             StringBuilder sb = new StringBuilder();
             int CurrentLineCount = 0;
             int CurrentCharCount = 0;
-            foreach (string f in Directory.GetFiles(args[0], "*.gsc", SearchOption.AllDirectories))
+            foreach (string f in Directory.GetFiles(scriptLocation, "*.gsc", SearchOption.AllDirectories))
             {
                 var CurrentSource = new SourceTokenDef();
-                CurrentSource.FilePath = f.Replace(args[0], "").Substring(1).Replace("\\", "/");
+                CurrentSource.FilePath = f.Replace(scriptLocation, "").Substring(1).Replace("\\", "/");
                 CurrentSource.LineStart = CurrentLineCount;
                 CurrentSource.CharStart = CurrentCharCount;
                 foreach (var line in File.ReadAllLines(f))
@@ -665,10 +714,21 @@ namespace DebugCompiler
             }
      
             Success(cpath);
-            Success("Script compiled. Press I to inject or anything else to continue");
+            if (compileOnly)
+            {
+                return Success("Script compiled.");
+            }
+            else if (buildScript)
+            {
+                Success("Script compiled. Injecting...");
+            }
+            else
+            {
+                Success("Script compiled. Press I to inject or anything else to continue");
 
-            if (args.Length < 5 && Console.ReadKey(true).Key != ConsoleKey.I)
-                return 0;
+                if (Console.ReadKey(true).Key != ConsoleKey.I)
+                    return 0;
+            }
 
             byte[] data = code.CompiledScript;
 
@@ -1179,7 +1239,7 @@ namespace DebugCompiler
             public int Unk0;
         };
 
-        private int cmd_Dump(string[] args)
+        private int cmd_Dump(string[] args, string[] opts)
         {
             return -1;
         }
