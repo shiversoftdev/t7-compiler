@@ -809,7 +809,7 @@ namespace TreyarchCompiler.Games
                     PushObject(CurrentFunction.AddOp(ScriptOpCode.Notify));
                     yield break;
                 case "endon_callback_a":
-                case "endon_callback":
+                case "endoncallback":
                 case "endon":
                     parameters.Reverse();
                     foreach (ParseTreeNode parameter in parameters) yield return new QOperand(CurrentFunction, parameter, 0);
@@ -817,9 +817,9 @@ namespace TreyarchCompiler.Games
                     PushObject(CurrentFunction.AddNotification(strnotify, (byte)parameters.Count));
                     yield break;
                 case "waittill_timeout_s":
-                case "waittill_timeout":
+                case "waittilltimeout":
                 case "waittill":
-                case "waittill_match":
+                case "waittillmatch":
                     parameters.Reverse();
                     foreach (ParseTreeNode parameter in parameters) yield return new QOperand(CurrentFunction, parameter, 0);
                     foreach (var val in EmitObject(CurrentFunction, CallPrefix, 0)) yield return val;
@@ -827,7 +827,7 @@ namespace TreyarchCompiler.Games
                     if(HasDectop) CurrentFunction.AddOp(ScriptOpCode.DecTop);
                     yield break;
             }
-            throw new ArgumentException($"{BaseCall.ChildNodes[0].Token.ValueString.ToLower()} was passed to EmitNotifierCall, but isnt a valid notfier");
+            throw new ArgumentException($"{BaseCall.ChildNodes[0].Token.ValueString.ToLower()} was passed to EmitNotifierCall, but isnt a valid notifier");
         }
 
         private IEnumerable<QOperand> EmitObject(T89ScriptExport CurrentFunction, ParseTreeNode node, uint Context)
