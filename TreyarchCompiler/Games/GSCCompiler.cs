@@ -1011,7 +1011,7 @@ namespace TreyarchCompiler.Games
                     yield break;
             }
 
-            throw new ArgumentException($"{BaseCall.ChildNodes[0].Token.ValueString.ToLower()} was passed to EmitNotifierCall, but isnt a valid notfier");
+            throw new ArgumentException($"{BaseCall.ChildNodes[0].Token.ValueString.ToLower()} was passed to EmitNotifierCall, but isnt a valid notifier");
         }
 
         private IEnumerable<QOperand> EmitObject(dynamic CurrentFunction, ParseTreeNode node, uint Context)
