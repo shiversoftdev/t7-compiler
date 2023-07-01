@@ -188,7 +188,7 @@ internal sealed class ConditionalBlocks
 
         tb.Append(InPlace[SourcePosition++]);
 
-        while (SourcePosition < InPlace.Length && char.IsLetterOrDigit(InPlace[SourcePosition]))
+        while (SourcePosition < InPlace.Length && (char.IsLetterOrDigit(InPlace[SourcePosition]) || InPlace[SourcePosition] == '_'))
             tb.Append(InPlace[SourcePosition++]);
 
         Token = tb.ToString().ToLower();
