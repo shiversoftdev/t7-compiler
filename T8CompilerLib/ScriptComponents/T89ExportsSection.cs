@@ -335,10 +335,10 @@ namespace T89CompilerLib.ScriptComponents
         {
             { "notify", ScriptOpCode.Notify},
             { "endon", ScriptOpCode.EndOn },
-            { "waittill_match", ScriptOpCode.WaitTillMatch },
+            { "waittillmatch", ScriptOpCode.WaitTillMatch },
             { "waittill", ScriptOpCode.WaitTill },
-            { "endon_callback", ScriptOpCode.EndOnCallback },
-            { "waittill_timeout", ScriptOpCode.WaittillTimeout }
+            { "endoncallback", ScriptOpCode.EndOnCallback },
+            { "waittilltimeout", ScriptOpCode.WaittillTimeout }
         };
 
         private static readonly Dictionary<string, ScriptOpCode> MathTokens = new Dictionary<string, ScriptOpCode>()

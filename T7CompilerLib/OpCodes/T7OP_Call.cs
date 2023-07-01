@@ -27,7 +27,7 @@ namespace T7CompilerLib.OpCodes
         {
             byte[] data = new byte[GetSize()];
 
-            base.Serialize(EmissionValue).CopyTo(data, 0);
+            // base.Serialize(EmissionValue).CopyTo(data, 0);
 
             data[T7OP_SIZE] = Import.NumParams;
 

@@ -59,12 +59,12 @@ namespace T7CompilerLib.OpCodes
 
             uint BaseAddress = GetCommitDataAddress() - CommitAddress;
 
-            foreach(var key in Stack.Keys)
-            {
-                uint index = (uint)(Stack[key]) * 8;
+            //foreach(var key in Stack.Keys)
+            //{
+            //    uint index = (uint)(Stack[key]) * 8;
 
-                ((int)Stack[key] + 1).GetBytes(Endianess).CopyTo(data, BaseAddress + index);
-            }
+            //    ((int)Stack[key] + 1).GetBytes(Endianess).CopyTo(data, BaseAddress + index);
+            //}
 
             return data;
         }
