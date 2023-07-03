@@ -327,7 +327,7 @@ namespace DebugCompiler
                 return Error("Failed to read the file specified");
             }
             var path = args.Length > 2 ? args[2] : (game == Games.T7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
-            PointerEx injresult = InjectScript(path, buffer, game, hotmode.none, false);
+            PointerEx injresult = InjectScript(path, buffer, game, hotmode.none, false, false);
             Console.WriteLine();
             Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
             Console.WriteLine($"\t[{path}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
@@ -506,11 +506,18 @@ namespace DebugCompiler
             public Dictionary<int, (int CStart, int CEnd)> LineMappings = new Dictionary<int, (int CStart, int CEnd)>();
         }
 
+        private struct InjectionPoint
+        {
+            public byte[] ByteCode;
+            public bool Client;
+        }
+
         private int cmd_Compile(string[] args, string[] opts)
         {
 
             List<string> conditionalSymbols = new List<string>();
             string replaceScript = null;
+            string replaceScriptClient = null;
             string scriptLocation = args.Length > 0 ? args[0] : "scripts";
 
             Platforms platform = Platforms.PC;
@@ -519,18 +526,18 @@ namespace DebugCompiler
             bool noruntime = false;
             bool buildScript = false;
             bool compileOnly = false;
+            bool injectClient = false;
+            bool injectServer = true;
 
             foreach (string opt in opts)
             {
                 if (opt == "--build")
                 {
                     buildScript = true;
-                }
-                else if (opt == "--compile")
+                } else if (opt == "--compile")
                 {
                     compileOnly = true;
-                }
-                else if (opt.Length > 2 && opt[1] == 'D')
+                } else if (opt.Length > 2 && opt[1] == 'D')
                 { // -Dsomething
                     conditionalSymbols.Add(opt.Substring(2));
                 }
@@ -541,8 +548,7 @@ namespace DebugCompiler
                 try
                 {
                     game = (Games)Enum.Parse(typeof(Games), args[1], true);
-                }
-                catch { }
+                } catch { }
             }
 
             if (File.Exists("gsc.conf"))
@@ -563,8 +569,17 @@ namespace DebugCompiler
                         case "script":
                             replaceScript = split[1].ToLower().Trim().Replace("\\", "/");
                             break;
+                        case "script_client":
+                            replaceScriptClient = split[1].ToLower().Trim().Replace("\\", "/");
+                            break;
                         case "scriptlocation":
                             scriptLocation = split[1];
+                            break;
+                        case "client":
+                            injectClient = split[1].ToLower().Trim() == "true";
+                            break;
+                        case "server":
+                            injectServer = split[1].ToLower().Trim() == "true";
                             break;
                         case "game":
                             if (!Enum.TryParse(split[1].ToLower().Trim().Replace("\\", "/"), true, out game))
@@ -585,10 +600,23 @@ namespace DebugCompiler
                 }
             }
 
+            // add custom symbol to control GSC/CSC script compilation
+            if (injectClient)
+            {
+                conditionalSymbols.Add("_INJECT_CLIENT");
+            }
+
+            if (injectServer)
+            {
+                conditionalSymbols.Add("_INJECT_SERVER");
+            }
+
             if (!Directory.Exists(scriptLocation))
                 return Error($"Script location is either not a directory or does not exist {args[0]}");
 
             bool isT7 = game == Games.T7;
+            replaceScript = replaceScript ?? (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
+            replaceScriptClient = replaceScriptClient ?? "scripts/zm_common/load.csc";
 
             //if (args.Length > 1)
             //{
@@ -598,131 +626,156 @@ namespace DebugCompiler
             //    }
             //}
 
-            string source = "";
-            CompiledCode code;
-            List<SourceTokenDef> SourceTokens = new List<SourceTokenDef>();
-            StringBuilder sb = new StringBuilder();
-            int CurrentLineCount = 0;
-            int CurrentCharCount = 0;
-            foreach (string f in Directory.GetFiles(scriptLocation, "*.gsc", SearchOption.AllDirectories))
-            {
-                var CurrentSource = new SourceTokenDef();
-                CurrentSource.FilePath = f.Replace(scriptLocation, "").Substring(1).Replace("\\", "/");
-                CurrentSource.LineStart = CurrentLineCount;
-                CurrentSource.CharStart = CurrentCharCount;
-                foreach (var line in File.ReadAllLines(f))
-                {
-                    CurrentSource.LineMappings[CurrentLineCount] = (CurrentCharCount, CurrentCharCount + line.Length + 1);
-                    sb.Append(line);
-                    sb.Append("\n");
-                    CurrentLineCount += 1;
-                    CurrentCharCount += line.Length + 1; // + \n
-                }
-                CurrentSource.LineEnd = CurrentLineCount;
-                CurrentSource.CharEnd = CurrentCharCount;
-                // Console.WriteLine($"{CurrentSource.FilePath} start {CurrentSource.LineStart} end {CurrentSource.LineEnd}");
-                SourceTokens.Add(CurrentSource);
-                sb.Append("\n"); // remember that this is here because its going to fuck up irony
-                end_loop:;
-            }
-
-            replaceScript = replaceScript ?? (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
-            source = sb.ToString();
-            var ppc = new ConditionalBlocks();
-            conditionalSymbols.Add(isT7 ? "BO3" : "BO4");
-            ppc.LoadConditionalTokens(conditionalSymbols);
-            
-            try
-            {
-                source = ppc.ParseSource(source);
-            }
-            catch(CBSyntaxException e)
-            {
-                int errorCharPos = e.ErrorPosition;
-                int numLineBreaks = 0;
-                foreach(var stok in SourceTokens)
-                {
-                    do
-                    {
-                        if(errorCharPos < stok.CharStart || errorCharPos > stok.CharEnd)
-                        {
-                            break; // havent reached the target index set yet
-                        }
-                        // now we have the source file we want
-                        errorCharPos -= numLineBreaks; // adjust for inserted linebreaks between files
-                        foreach(var line in stok.LineMappings)
-                        {
-                            var constraints = line.Value;
-                            if(errorCharPos < constraints.CStart || errorCharPos > constraints.CEnd)
-                            {
-                                continue; // havent found the index we want yet
-                            }
-                            // found the target line
-                            return Error($"{e.Message} in scripts/{stok.FilePath} at line {line.Key - stok.LineStart}, position {errorCharPos - constraints.CStart}");
-                        }
-                    }
-                    while (false);
-                    numLineBreaks++;
-                }
-                return Error(e.Message);
-            }
-
-            code = Compiler.Compile(platform, game, Modes.MP, false, source);
-            if (code.Error != null && code.Error.Length > 0)
-            {
-                if(code.Error.LastIndexOf("line=") < 0)
-                {
-                    return Error(code.Error);
-                }
-                int iStart = code.Error.LastIndexOf("line=") + "line=".Length;
-                int iLength = code.Error.LastIndexOf("]") - iStart;
-                int line = int.Parse(code.Error.Substring(iStart, iLength));
-                // Console.WriteLine(code.Error + " :: " + line);
-                foreach (var stok in SourceTokens)
-                {
-                    do
-                    {
-                        if(stok.LineStart <= line && stok.LineEnd >= line)
-                        {
-                            return Error($"Syntax error in scripts/{stok.FilePath} around line {line - stok.LineStart + 1}");
-                        }
-                    }
-                    while (false);
-                    line--; // acccount for linebreaks appended to each file
-                }
-                return Error(code.Error);
-            }
-
-            string cpath = $"compiled.{(code.RequiresGSI ? "gsic" : "gscc")}";
-            File.WriteAllBytes(cpath, code.CompiledScript);
             string hpath = "hashes.txt";
             StringBuilder hashes = new StringBuilder();
-            foreach(var kvp in code.HashMap)
+            List<InjectionPoint> bytecode = new List<InjectionPoint>();
+
+            if (!injectServer && !injectClient)
             {
-                hashes.AppendLine($"0x{kvp.Key:X}, {kvp.Value}");
+                return Error("Inject server and inject client are both set to false");
+            }
+
+            foreach (bool client in new bool[] { true, false })
+            {
+                if (client)
+                {
+                    if (!injectClient)
+                    {
+                        continue;
+                    }
+                } else
+                {
+                    if (!injectServer)
+                    {
+                        continue;
+                    }
+                }
+
+                string source = "";
+                CompiledCode code;
+                List<SourceTokenDef> SourceTokens = new List<SourceTokenDef>();
+                StringBuilder sb = new StringBuilder();
+                int CurrentLineCount = 0;
+                int CurrentCharCount = 0;
+                foreach (string f in Directory.GetFiles(scriptLocation, client ? "*.csc" : "*.gsc", SearchOption.AllDirectories))
+                {
+                    var CurrentSource = new SourceTokenDef();
+                    CurrentSource.FilePath = f.Replace(scriptLocation, "").Substring(1).Replace("\\", "/");
+                    CurrentSource.LineStart = CurrentLineCount;
+                    CurrentSource.CharStart = CurrentCharCount;
+                    foreach (var line in File.ReadAllLines(f))
+                    {
+                        CurrentSource.LineMappings[CurrentLineCount] = (CurrentCharCount, CurrentCharCount + line.Length + 1);
+                        sb.Append(line);
+                        sb.Append("\n");
+                        CurrentLineCount += 1;
+                        CurrentCharCount += line.Length + 1; // + \n
+                    }
+                    CurrentSource.LineEnd = CurrentLineCount;
+                    CurrentSource.CharEnd = CurrentCharCount;
+                    // Console.WriteLine($"{CurrentSource.FilePath} start {CurrentSource.LineStart} end {CurrentSource.LineEnd}");
+                    SourceTokens.Add(CurrentSource);
+                    sb.Append("\n"); // remember that this is here because its going to fuck up irony
+                end_loop:;
+                }
+
+                source = sb.ToString();
+                var ppc = new ConditionalBlocks();
+                conditionalSymbols.Add(isT7 ? "BO3" : "BO4");
+                ppc.LoadConditionalTokens(conditionalSymbols);
+
+                try
+                {
+                    source = ppc.ParseSource(source);
+                } catch (CBSyntaxException e)
+                {
+                    int errorCharPos = e.ErrorPosition;
+                    int numLineBreaks = 0;
+                    foreach (var stok in SourceTokens)
+                    {
+                        do
+                        {
+                            if (errorCharPos < stok.CharStart || errorCharPos > stok.CharEnd)
+                            {
+                                break; // havent reached the target index set yet
+                            }
+                            // now we have the source file we want
+                            errorCharPos -= numLineBreaks; // adjust for inserted linebreaks between files
+                            foreach (var line in stok.LineMappings)
+                            {
+                                var constraints = line.Value;
+                                if (errorCharPos < constraints.CStart || errorCharPos > constraints.CEnd)
+                                {
+                                    continue; // havent found the index we want yet
+                                }
+                                // found the target line
+                                return Error($"{e.Message} in scripts/{stok.FilePath} at line {line.Key - stok.LineStart}, position {errorCharPos - constraints.CStart}");
+                            }
+                        }
+                        while (false);
+                        numLineBreaks++;
+                    }
+                    return Error(e.Message);
+                }
+
+                code = Compiler.Compile(platform, game, Modes.MP, false, source);
+                if (code.Error != null && code.Error.Length > 0)
+                {
+                    if (code.Error.LastIndexOf("line=") < 0)
+                    {
+                        return Error(code.Error);
+                    }
+                    int iStart = code.Error.LastIndexOf("line=") + "line=".Length;
+                    int iLength = code.Error.LastIndexOf("]") - iStart;
+                    int line = int.Parse(code.Error.Substring(iStart, iLength));
+                    // Console.WriteLine(code.Error + " :: " + line);
+                    foreach (var stok in SourceTokens)
+                    {
+                        do
+                        {
+                            if (stok.LineStart <= line && stok.LineEnd >= line)
+                            {
+                                return Error($"Syntax error in scripts/{stok.FilePath} around line {line - stok.LineStart + 1}");
+                            }
+                        }
+                        while (false);
+                        line--; // acccount for linebreaks appended to each file
+                    }
+                    return Error(code.Error);
+                }
+
+                string cpath = $"compiled.{(client ? (code.RequiresGSI ? "csic" : "cscc") : (code.RequiresGSI ? "gsic" : "gscc"))}";
+                File.WriteAllBytes(cpath, code.CompiledScript);
+                foreach (var kvp in code.HashMap)
+                {
+                    hashes.AppendLine($"0x{kvp.Key:X}, {kvp.Value}");
+                }
+
+                if (code.OpcodeEmissions != null)
+                {
+                    byte[] opsRaw = new byte[code.OpcodeEmissions.Count * 4];
+                    for (int i = 0; i < code.OpcodeEmissions.Count; i++)
+                    {
+                        BitConverter.GetBytes(code.OpcodeEmissions[i]).CopyTo(opsRaw, i * 4);
+                    }
+                    File.WriteAllBytes(client ? "compiledclient.omap" : "compiled.omap", opsRaw);
+                }
+                Success(cpath);
+
+                bytecode.Add(new InjectionPoint {
+                    ByteCode = code.CompiledScript,
+                    Client = client
+                });
             }
             File.WriteAllText(hpath, hashes.ToString());
 
-            if(code.OpcodeEmissions != null)
-            {
-                byte[] opsRaw = new byte[code.OpcodeEmissions.Count * 4];
-                for(int i = 0; i < code.OpcodeEmissions.Count; i++)
-                {
-                    BitConverter.GetBytes(code.OpcodeEmissions[i]).CopyTo(opsRaw, i * 4);
-                }
-                File.WriteAllBytes("compiled.omap", opsRaw);
-            }
-     
-            Success(cpath);
             if (compileOnly)
             {
                 return Success("Script compiled.");
-            }
-            else if (buildScript)
+            } else if (buildScript)
             {
                 Success("Script compiled. Injecting...");
-            }
-            else
+            } else
             {
                 Success("Script compiled. Press I to inject or anything else to continue");
 
@@ -730,14 +783,22 @@ namespace DebugCompiler
                     return 0;
             }
 
-            byte[] data = code.CompiledScript;
+            bool injected = false; ;
 
-            PointerEx injresult = InjectScript(replaceScript, code.CompiledScript, game, hot, noruntime);
-            Console.WriteLine();
-            Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
-            Console.WriteLine($"\t[{replaceScript}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
+            foreach (var bc in bytecode)
+            {
+                byte[] data = bc.ByteCode;
 
-            if (!injresult && hot == hotmode.none)
+                string rscript = bc.Client ? replaceScriptClient : replaceScript;
+                PointerEx injresult = InjectScript(rscript, data, game, hot, noruntime, bc.Client);
+                Console.WriteLine();
+                Console.ForegroundColor = !injresult ? ConsoleColor.Green : ConsoleColor.Red;
+                Console.WriteLine($"\t[{rscript}]: {(!injresult ? "Injected" : $"Failed to Inject ({injresult:X})")}\n");
+
+                injected = injected || !injresult;
+            }
+
+            if (injected && hot == hotmode.none)
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.WriteLine("Press any key to reset gsc parsetree... If in game, you are probably going to crash.\n");
@@ -782,13 +843,13 @@ namespace DebugCompiler
         private int InjectedBuffSize;
         private T7SPT InjectedScript;
         private int OriginalPID = 0;
-        private int InjectScript(string replacePath, byte[] buffer, Games game, hotmode hot, bool noruntime)
+        private int InjectScript(string replacePath, byte[] buffer, Games game, hotmode hot, bool noruntime, bool client)
         {
             LastGameInjected = game;
             switch (game)
             {
                 case Games.T7: return InjectT7(replacePath, buffer, hot, noruntime);
-                case Games.T8: return InjectT8(replacePath, buffer);
+                case Games.T8: return InjectT8(replacePath, buffer, client);
             }
             return Error("Invalid game provided to inject.");
         }
@@ -1001,8 +1062,9 @@ namespace DebugCompiler
         }
 
         private T8InjectCache InjectCache;
+        private T8InjectCache InjectCacheClient;
 
-        private int InjectT8(string replacePath, byte[] buffer)
+        private int InjectT8(string replacePath, byte[] buffer, bool client)
         {
             NoExcept(FreeT8Script);
             GSICInfoT8 gsi = null;
@@ -1056,24 +1118,43 @@ namespace DebugCompiler
             var SPTEntries = bo4.GetArray<T8SPT>(sptGlob, sptCount);
             replacePath = replacePath.ToLower().Trim().Replace("\\", "/");
             var surrogateScript = T8s64Hash(replacePath); // script we are hooking
-            var targetScript = 0x124CECFF7280BE52; // script we are replacing
-            InjectCache.hSurrogate = 0;
-            InjectCache.hTarget = 0;
+            ulong targetScript; // script we are replacing
+
+            if (client)
+            {
+                targetScript = 0x10aeb2e4f2b455a1;
+            } else
+            {
+                targetScript = 0x124cecff7280be52;
+            }
+            T8InjectCache cache;
+
+            if (client)
+            {
+                cache = InjectCacheClient;
+            } else
+            {
+                cache = InjectCache;
+            }
+
+
+            cache.hSurrogate = 0;
+            cache.hTarget = 0;
 
             for (int i = 0; i < SPTEntries.Length; i++)
             {
                 var spt = SPTEntries[i];
                 if (spt.ScriptName == surrogateScript)
                 {
-                    InjectCache.Surrogate = spt;
-                    InjectCache.hSurrogate = sptGlob + (ulong)(i * Marshal.SizeOf(typeof(T8SPT)));
+                    cache.Surrogate = spt;
+                    cache.hSurrogate = sptGlob + (ulong)(i * Marshal.SizeOf(typeof(T8SPT)));
                 }
                 if (spt.ScriptName == targetScript)
                 {
-                    InjectCache.Target = spt;
-                    InjectCache.hTarget = sptGlob + (ulong)(i * Marshal.SizeOf(typeof(T8SPT)));
+                    cache.Target = spt;
+                    cache.hTarget = sptGlob + (ulong)(i * Marshal.SizeOf(typeof(T8SPT)));
                 }
-                if(InjectCache.hSurrogate && InjectCache.hTarget)
+                if(cache.hSurrogate && cache.hTarget)
                 {
                     break;
                 }
@@ -1081,7 +1162,7 @@ namespace DebugCompiler
 
             try
             {
-                if (!InjectCache.hSurrogate || !InjectCache.hTarget)
+                if (!cache.hSurrogate || !cache.hTarget)
                 {
                     return Error("Unable to identify critical injection information. Double check your script path, and try restarting the game. Make sure you are injecting in the pregame lobby.");
                 }
@@ -1090,26 +1171,27 @@ namespace DebugCompiler
                 int tableOff = 0x18;
 
                 // patch include
-                byte includeCount = bo4.GetValue<byte>(InjectCache.Surrogate.Buffer + includeOff);
-                PointerEx includeTable = InjectCache.Surrogate.Buffer + bo4.GetValue<int>(InjectCache.Surrogate.Buffer + tableOff);
+                byte includeCount = bo4.GetValue<byte>(cache.Surrogate.Buffer + includeOff);
+                PointerEx includeTable = cache.Surrogate.Buffer + bo4.GetValue<int>(cache.Surrogate.Buffer + tableOff);
                 for (int i = 0; i < includeCount; i++)
                 {
-                    if (bo4.GetValue<long>(includeTable + (i * 8)) == targetScript)
+                    if (bo4.GetValue<ulong>(includeTable + (i * 8)) == targetScript)
                     {
                         goto patchBuff;
                     }
                 }
                 bo4.SetValue(includeTable + (includeCount * 8), targetScript);
-                bo4.SetValue(InjectCache.Surrogate.Buffer + includeOff, (byte)(includeCount + 1));
+                bo4.SetValue(cache.Surrogate.Buffer + includeOff, (byte)(includeCount + 1));
 
                 patchBuff:
-                bo4.GetBytes(InjectCache.Target.Buffer + 0x8, 8).CopyTo(buffer, 0x8); // crc32
-                InjectCache.hBuffer = bo4.QuickAlloc(buffer.Length); // space
-                bo4.SetBytes(InjectCache.hBuffer, buffer); // write to proc
-                bo4.SetValue<long>(InjectCache.hTarget + 0x10, InjectCache.hBuffer); // buffer pointer redirect
-                InjectCache.Pid = bo4.BaseProcess.Id;
-                InjectCache.BufferSize = buffer.Length;
-                InjectCache.IsInjected = true;
+                bo4.GetBytes(cache.Target.Buffer + 0x8, 8).CopyTo(buffer, 0x8); // crc32
+                bo4.GetBytes(cache.Target.Buffer + 0x10, 8).CopyTo(buffer, 0x10); // ScriptName
+                cache.hBuffer = bo4.QuickAlloc(buffer.Length); // space
+                bo4.SetBytes(cache.hBuffer, buffer); // write to proc
+                bo4.SetValue<long>(cache.hTarget + 0x10, cache.hBuffer); // buffer pointer redirect
+                cache.Pid = bo4.BaseProcess.Id;
+                cache.BufferSize = buffer.Length;
+                cache.IsInjected = true;
 
                 try
                 {
@@ -1152,7 +1234,14 @@ namespace DebugCompiler
 
         private void FreeT8Script()
         {
-            if (!InjectCache.IsInjected)
+            FreeT8ScriptCache(InjectCache);
+            FreeT8ScriptCache(InjectCacheClient);
+        }
+
+        private void FreeT8ScriptCache(T8InjectCache cache)
+        {
+
+            if (!cache.IsInjected)
             {
                 return;
             }
@@ -1163,7 +1252,7 @@ namespace DebugCompiler
                 return;
             }
 
-            if (bo4.BaseProcess.Id != InjectCache.Pid)
+            if (bo4.BaseProcess.Id != cache.Pid)
             {
                 return;
             }
@@ -1173,10 +1262,10 @@ namespace DebugCompiler
             try
             {
                 // free allocated space
-                ProcessEx.VirtualFreeEx(bo4.Handle, InjectCache.hBuffer, (uint)InjectCache.BufferSize, (int)EnvironmentEx.FreeType.Release);
+                ProcessEx.VirtualFreeEx(bo4.Handle, cache.hBuffer, (uint)cache.BufferSize, (int)EnvironmentEx.FreeType.Release);
 
                 // Patch spt struct
-                bo4.SetStruct(InjectCache.hTarget, InjectCache.Target);
+                bo4.SetStruct(cache.hTarget, cache.Target);
 
                 // Reset hooked detours
                 // bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
