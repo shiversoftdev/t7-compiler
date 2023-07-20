@@ -643,6 +643,10 @@ namespace DebugCompiler
                     {
                         continue;
                     }
+                    if (game != Games.T8)
+                    {
+                        return Error("Can't Inject client outside of Black Ops 4");
+                    }
                 } else
                 {
                     if (!injectServer)
@@ -1061,12 +1065,18 @@ namespace DebugCompiler
             return 2;
         }
 
-        private T8InjectCache InjectCache;
-        private T8InjectCache InjectCacheClient;
+        private T8InjectCache InjectCache = new T8InjectCache();
+        private T8InjectCache InjectCacheClient = new T8InjectCache();
 
         private int InjectT8(string replacePath, byte[] buffer, bool client)
         {
-            NoExcept(FreeT8Script);
+            if (client)
+            {
+                NoExcept(FreeT8ScriptClient);
+            } else
+            {
+                NoExcept(FreeT8ScriptServer);
+            }
             GSICInfoT8 gsi = null;
             if (BitConverter.ToInt64(buffer, 0) != 0x36000A0D43534780)
             {
@@ -1078,15 +1088,15 @@ namespace DebugCompiler
                 using (MemoryStream ms = new MemoryStream(buffer))
                 using (BinaryReader reader = new BinaryReader(ms))
                 {
-                    T7ScriptObject.GSIFields currentField = T7ScriptObject.GSIFields.Detours;
+                    T89ScriptObject.GSIFields currentField = T89ScriptObject.GSIFields.Detours;
                     reader.BaseStream.Position += 4;
                     gsi = new GSICInfoT8();
                     for (int numFields = reader.ReadInt32(); numFields > 0; numFields--)
                     {
-                        currentField = (T7ScriptObject.GSIFields)reader.ReadInt32();
+                        currentField = (T89ScriptObject.GSIFields)reader.ReadInt32();
                         switch (currentField)
                         {
-                            case T7ScriptObject.GSIFields.Detours:
+                            case T89ScriptObject.GSIFields.Detours:
                                 int numdetours = reader.ReadInt32();
                                 for (int j = 0; j < numdetours; j++)
                                 {
@@ -1196,23 +1206,26 @@ namespace DebugCompiler
                 try
                 {
                     string exeFilePath = Assembly.GetExecutingAssembly().Location;
-                    //var result = bo4.Call<long>(bo4.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t8cinternal.dll"));
-                    //bo4.Refresh();
+                    var result = bo4.Call<long>(bo4.GetProcAddress(@"kernel32.dll", @"LoadLibraryA"), Path.Combine(Path.GetDirectoryName(exeFilePath), "t8cinternal.dll"));
+                    bo4.Refresh();
 
-                    //if (result == 0)
-                    //{
-                    //    return 4;
-                    //}
+                    if (result == 0)
+                    {
+                        return 4;
+                    }
 
-                    //bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
-                    //if (gsi != null)
-                    //{
-                    //    // detours
-                    //    if (gsi.Detours.Count > 0)
-                    //    {
-                    //        bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)InjectCache.hBuffer);
-                    //    }
-                    //}
+                    if (gsi != null)
+                    {
+                        // detours
+                        if (gsi.Detours.Count > 0)
+                        {
+                            bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RegisterDetours"), gsi.PackDetours(), gsi.Detours.Count, (long)cache.hBuffer, client ? 1 : 0);
+                        }
+                    } else
+                    {
+                        // done inside RegisterDetours, useless with gsi
+                        bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"), client ? 1 : 0);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -1234,20 +1247,51 @@ namespace DebugCompiler
 
         private void FreeT8Script()
         {
-            FreeT8ScriptCache(InjectCache);
-            FreeT8ScriptCache(InjectCacheClient);
-        }
-
-        private void FreeT8ScriptCache(T8InjectCache cache)
-        {
-
-            if (!cache.IsInjected)
+            ProcessEx bo4 = "blackops4";
+            if (bo4 is null)
             {
                 return;
             }
 
+            FreeT8ScriptCache(bo4, false);
+            FreeT8ScriptCache(bo4, true);
+        }
+
+        private void FreeT8ScriptClient()
+        {
             ProcessEx bo4 = "blackops4";
             if (bo4 is null)
+            {
+                return;
+            }
+
+            FreeT8ScriptCache(bo4, true);
+        }
+
+        private void FreeT8ScriptServer()
+        {
+            ProcessEx bo4 = "blackops4";
+            if (bo4 is null)
+            {
+                return;
+            }
+
+            FreeT8ScriptCache(bo4, false);
+        }
+
+        private void FreeT8ScriptCache(ProcessEx bo4, bool client)
+        {
+            T8InjectCache cache;
+
+            if (client)
+            {
+                cache = InjectCacheClient;
+            } else
+            {
+                cache = InjectCache;
+            }
+
+            if (!cache.IsInjected)
             {
                 return;
             }
@@ -1256,9 +1300,7 @@ namespace DebugCompiler
             {
                 return;
             }
-
             bo4.OpenHandle();
-
             try
             {
                 // free allocated space
@@ -1266,15 +1308,13 @@ namespace DebugCompiler
 
                 // Patch spt struct
                 bo4.SetStruct(cache.hTarget, cache.Target);
-
-                // Reset hooked detours
-                // bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"));
-            }
-            finally
+                bo4.Call<VOID>(bo4.GetProcAddress(@"t8cinternal.dll", @"RemoveDetours"), client ? 1 : 0);
+                cache.IsInjected = false;
+            } finally
             {
                 bo4.CloseHandle();
             }
-        }
+}
 
         private void FreeT7Script()
         {
@@ -1297,7 +1337,7 @@ namespace DebugCompiler
             bo3.CloseHandle();
         }
 
-        private struct T8InjectCache
+        private class T8InjectCache
         {
             public T8SPT Surrogate;
             public T8SPT Target;

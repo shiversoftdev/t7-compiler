@@ -1,6 +1,8 @@
 #include "builtins.h"
 #include "offsets.h"
 #include "detours.h"
+#include <fstream>
+#include <ctime>
 
 std::unordered_map<int, void*> GSCBuiltins::CustomFunctions;
 tScrVm_GetString GSCBuiltins::ScrVm_GetString;
@@ -39,7 +41,11 @@ void GSCBuiltins::Init()
 {
 	GSCBuiltins::Generate();
 	auto builtinFunction = (BuiltinFunctionDef*)OFF_IsProfileBuild;
+#ifdef DETOUR_LOGGING
+	GSCBuiltins::nlog("Installing %d builtins...", CustomFunctions.size());
+#endif
 	builtinFunction->max_args = 255;
+	builtinFunction->type = 0;
 	builtinFunction->actionFunc = GSCBuiltins::Exec;
 
 	ScrVm_GetString = (tScrVm_GetString)OFF_ScrVm_GetString;
@@ -57,7 +63,9 @@ void GSCBuiltins::AddCustomFunction(const char* name, void* funcPtr)
 INT64 GSCBuiltins::Exec(int scriptInst)
 {
 	auto numParams = ScrVm_GetNumParam(scriptInst);
+#ifdef DETOUR_LOGGING
 	nlog("called with %d parameters", numParams); // TODO
+#endif
 	if (!numParams)
 	{
 		return ScrVm_AddBool(scriptInst, 0);
@@ -85,41 +93,28 @@ void GSCBuiltins::GScr_nprintln(int scriptInst)
 {
 	// note: we use 1 as our param index because custom builtin params start at 1. The first param (0) is always the name of the function called.
 	// we also use %s to prevent a string format vulnerability!
-	nlog("%s", ScrVm_GetString(0, 1));
+	nlog("%s", ScrVm_GetString(scriptInst, 1));
 }
 
 void GSCBuiltins::GScr_detour(int scriptInst)
 {
-	if (scriptInst)
-	{
-		return;
-	}
-	ScriptDetours::DetoursEnabled = true;
+	ScriptDetours::DetoursEnabled[scriptInst] = true;
 }
 
 void GSCBuiltins::GScr_relinkDetours(int scriptInst)
 {
-	if (scriptInst)
-	{
-		return;
-	}
-	ScriptDetours::LinkDetours();
+	ScriptDetours::LinkDetours(scriptInst);
 }
 
 void GSCBuiltins::GScr_livesplit(int scriptInst)
 {
-	if (scriptInst)
-	{
-		return;
-	}
-
 	HANDLE livesplit = CreateFile("\\\\.\\pipe\\LiveSplit", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 	if (!livesplit)
 	{
 		return;
 	}
 
-	const char* message = ScrVm_GetString(0, 1);
+	const char* message = ScrVm_GetString(scriptInst, 1);
 	WriteFile(livesplit, message, strlen(message), nullptr, NULL);
 	CloseHandle(livesplit);
 }
@@ -127,13 +122,17 @@ void GSCBuiltins::GScr_livesplit(int scriptInst)
 
 void GSCBuiltins::nlog(const char* str, ...)
 {
-	va_list ap;
-	HWND notepad, edit;
 	char buf[256];
 
+	va_list ap;
 	va_start(ap, str);
 	vsprintf(buf, str, ap);
 	va_end(ap);
+	std::ofstream output{ "t8compiler.log", std::ios::app };
+
+	output << buf << "\n";
+	/*
+	HWND notepad, edit;
 	strcat_s(buf, 256, "\r\n");
 	notepad = FindWindow(NULL, "Untitled - Notepad");
 	if (!notepad)
@@ -142,4 +141,5 @@ void GSCBuiltins::nlog(const char* str, ...)
 	}
 	edit = FindWindowEx(notepad, NULL, "EDIT", NULL);
 	SendMessage(edit, EM_REPLACESEL, TRUE, (LPARAM)buf);
+	//*/
 }

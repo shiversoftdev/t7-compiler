@@ -281,6 +281,7 @@ namespace T89CompilerLib.ScriptComponents
         public uint Namespace2 { get; private set; }
         public byte NumParams { get; private set; }
         public byte Flags { get; set; }
+        internal uint LoadedSize;
 
         /// <summary>
         /// This is used when we want to perform quick removes/adds from the table
@@ -470,6 +471,8 @@ namespace T89CompilerLib.ScriptComponents
                 currOp?.Commit(ref OpCodeData, ref baseaddress, EmissionTable);
                 currOp = currOp.NextOpCode;
             }
+            LoadedOffset = (uint)ByteCodeAddress;
+            LoadedSize = baseaddress - (uint)ByteCodeAddress;
 
             byte[] NewBuffer = new byte[ByteCodeAddress + OpCodeData.Count];
 

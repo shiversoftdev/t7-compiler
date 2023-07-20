@@ -52,8 +52,9 @@ namespace TreyarchCompiler.Games
                 return data;
             }
             var assemble_ticks = DateTime.Now.Ticks;
-            try 
-            { 
+            try
+            {
+                data.RequiresGSI = Script.UsingGSI;
                 data.CompiledScript = Script.Serialize();
                 data.HashMap = Script.GetHashMap();
             } 
