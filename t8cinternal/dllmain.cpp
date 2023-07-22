@@ -14,7 +14,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     case DLL_PROCESS_ATTACH:
         GSCBuiltins::Init();
         ScriptDetours::InstallHooks();
-        // LazyLink::Init();
+        LazyLink::Init();
         break;
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:

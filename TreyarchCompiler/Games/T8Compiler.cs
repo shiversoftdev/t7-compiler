@@ -494,6 +494,9 @@ namespace TreyarchCompiler.Games
                         CurrentOp.SetOperands = EmitVector(CurrentFunction, node, Context);
                         Push(CurrentOp);
                         break;
+                    case "lazyFunction":
+                        EmitLazyFunctionPtr(CurrentFunction, node);
+                        break;
 
                     case "shortHandArray":
                         CurrentOp.SetOperands = EmitArraySH(CurrentFunction, node, Context);
@@ -916,6 +919,14 @@ namespace TreyarchCompiler.Games
             yield return new QOperand(CurrentFunction, node.ChildNodes[1], 0);
             yield return new QOperand(CurrentFunction, node.ChildNodes[0], 0);
             CurrentFunction.AddOp(ScriptOpCode.Vector);
+        }
+
+        private void EmitLazyFunctionPtr(dynamic CurrentFunction, ParseTreeNode node)
+        {
+            var ns = node.ChildNodes[1].Token.ValueString;
+            var func = node.ChildNodes[node.ChildNodes.Count - 1].Token.ValueString;
+            var script = node.ChildNodes[3].Token.ValueString.ToLower().Replace("\\", "/") + node.ChildNodes[4].Token.ValueString.ToLower();
+            CurrentFunction.AddLazyGetFunction(Script.T8s64Hash(script), Script.T8Hash(ns), Script.T8Hash(func));
         }
 
         private void EmitFunctionPtr(T89ScriptExport CurrentFunction, ParseTreeNode node, byte Numparams)

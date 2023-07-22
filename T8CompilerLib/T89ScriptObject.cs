@@ -424,6 +424,11 @@ namespace T89CompilerLib
                 if (ReverseOps[GetVMType()].TryGetValue(indexer, out ushort val))
                     return val;
 
+                if (indexer == ScriptOpCode.LazyGetFunction)
+                {
+                    return 0x16; // hardcoded ig
+                }
+
                 Console.WriteLine($"Platform is missing opcode: {indexer.ToString()}");
                 return 0xFFFF; //invalid
             }

@@ -11,6 +11,7 @@
 #define OFF_ScrVm_GetNumParam OFFSET(0x2774440)
 #define OFF_ScrVm_AddInt OFFSET(0x276EB80)
 #define OFF_ScrVm_AddBool OFFSET(0x276E760)
+#define OFF_ScrVm_AddUndefined OFFSET(0x4072AE0)
 #define OFF_ScrVm_Opcodes OFFSET(0x4EED340)
 #define OFF_Scr_GetFunction OFFSET(0x33AF840)
 #define OFF_Scr_GetMethod OFFSET(0x33AFC20)

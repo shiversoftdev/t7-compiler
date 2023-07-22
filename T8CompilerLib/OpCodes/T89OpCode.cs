@@ -280,6 +280,7 @@ namespace T89CompilerLib.OpCodes
         ClassFunctionThreadCall2,
         EvalLocalVariableCached2,
         EvalLocalVariableRefCached2,
+        LazyGetFunction,
         Invalid = 0xFF,
     }
 

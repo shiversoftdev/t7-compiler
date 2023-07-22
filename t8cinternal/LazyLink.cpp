@@ -11,49 +11,60 @@ void LazyLink::Init()
 
 void LazyLink::VM_OP_GetLazyFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate)
 {
-	//INT64 base = (*fs_0 + 3) & 0xFFFFFFFFFFFFFFFCLL;
-	//INT32 Namespace = *(INT32*)base;
-	//INT32 Function = *(INT32*)(base + 4);
-	//char* script = (char*)(*fs_0 + (*(INT32*)(base + 8)));
-	//auto asset = ScriptDetours::FindScriptParsetree(script);
+	INT64 base = (*fs_0 + 3) & 0xFFFFFFFFFFFFFFFCLL;
+	INT32 nsp = *(INT32*)base;
+	INT32 func = *(INT32*)(base + 4);
+	INT64 script = *(INT64*)(base + 8);
 
-	//if (!asset)
-	//{
-	//	*(INT32*)(fs_0[1] + 0x18) = 0x0; // undefined
-	//	fs_0[1] += 0x10; // change stack top
-	//	return;
-	//}
+#ifdef DETOUR_LOGGING
+	GSCBuiltins::nlog("Lazy loading %x::%x <%p>...", nsp, func, script);
+#endif
+	// (field_0) move past the data
+	fs_0[0] = base + 0x10;
+	// (top) go to next field
+	fs_0[1] += 0x10;
 
-	//auto buffer = *(char**)(asset + 0x10);
-	//auto exportsOffset = *(INT32*)(buffer + 0x20);
-	//auto exports = (INT64)(exportsOffset + buffer);
-	//auto numExports = *(INT16*)(buffer + 0x3A);
-	//__t7export* currentExport = (__t7export*)exports;
-	//bool found = false;
+	auto buffer = ScriptDetours::FindLinkedScript(script, inst);
 
-	//for (INT16 i = 0; i < numExports; i++, currentExport++)
-	//{
-	//	if (currentExport->funcName != Function)
-	//	{
-	//		continue;
-	//	}
-	//	if (currentExport->funcNS != Namespace)
-	//	{
-	//		continue;
-	//	}
-	//	found = true;
-	//	break;
-	//}
+	if (!buffer)
+	{
+#ifdef DETOUR_LOGGING
+		GSCBuiltins::nlog("Failed to locate %p...", script);
+#endif
+		*(INT32*)(fs_0[1] + 8) = 0x0; // undefined
+		return;
+	}
 
-	//if (!found)
-	//{
-	//	*(INT32*)(fs_0[1] + 0x18) = 0x0; // undefined
-	//	fs_0[1] += 0x10; // change stack top
-	//	return;
-	//}
+	auto exportsOffset = *(INT32*)(buffer + 0x30);
+	auto exports = (INT64)(exportsOffset + buffer);
+	auto numExports = *(INT16*)(buffer + 0x1E);
+	__t8export* currentExport = (__t8export*)exports;
 
-	//*(INT32*)(fs_0[1] + 0x18) = 0xE; // assign the top variable's type
-	//*(INT64*)(fs_0[1] + 0x10) = (INT64)buffer + currentExport->bytecodeOffset; // assign the top variable's value
-	//fs_0[1] += 0x10; // change stack top
-	//*fs_0 = base + 0xC; // move past the data
+	INT64 link = 0;
+
+	for (INT16 i = 0; i < numExports; i++, currentExport++)
+	{
+		if (currentExport->funcName != func)
+		{
+			continue;
+		}
+		if (currentExport->funcNS != nsp)
+		{
+			continue;
+		}
+		link = (INT64)buffer + currentExport->bytecodeOffset;
+	}
+
+#ifdef DETOUR_LOGGING
+	GSCBuiltins::nlog("Output export: %p!", link);
+#endif
+	if (!link)
+	{
+		*(INT32*)(fs_0[1] + 8) = 0x0; // undefined
+		return;
+	}
+
+	// assign the top variable's to the ptr
+	*(INT64*)(fs_0[1]) = link;
+	*(INT32*)(fs_0[1] + 8) = 0xC; // SCRIPT_FUNCTION(0xC)
 }

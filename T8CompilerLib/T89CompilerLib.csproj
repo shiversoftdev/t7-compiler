@@ -67,6 +67,7 @@
   <ItemGroup>
     <Compile Include="CRC32.cs" />
     <Compile Include="OpCodes\T89OP_AbstractCall.cs" />
+    <Compile Include="OpCodes\T89OP_LazyGetFunction.cs" />
     <Compile Include="OpCodes\T89OP_SetVariableFieldRef.cs" />
     <Compile Include="OpCodes\T89OP_EvalFieldVariable.cs" />
     <Compile Include="OpCodes\T89OP_GetFuncPtr.cs" />

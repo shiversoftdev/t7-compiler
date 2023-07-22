@@ -639,6 +639,16 @@ namespace T89CompilerLib.ScriptComponents
         }
 
         /// <summary>
+        /// Add a lazy get function reference
+        /// </summary>
+        /// <param name="str"></param>
+        /// <returns></returns>
+        public T89OpCode AddLazyGetFunction(ulong script, uint ns, uint func)
+        {
+            return __addop_internal(new T89OP_LazyGetFunction(ns, func, script));
+        }
+
+        /// <summary>
         /// Try to emit a local variable. Will throw an ArgumentException if the local cant be resolved
         /// </summary>
         /// <param name="Identifier">Lowercase version of the identifier. If not, we will run into ref issues</param>
