@@ -5,6 +5,9 @@
 
 void LazyLink::Init()
 {
+#ifdef DETOUR_LOGGING
+	GSCBuiltins::nlog("Installing Lazy link");
+#endif
 	// Change Opcode Handler 0x16 to VM_OP_GetLazyFunction
 	*(INT64*)(0x16 * 8 + OFF_ScrVm_Opcodes) = (INT64)VM_OP_GetLazyFunction;
 }

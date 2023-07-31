@@ -300,7 +300,8 @@ namespace TreyarchCompiler
             //Script Reference Components
             gscForFunction.Rule = ToTerm("&") + Identifier + "::";
             getFunction.Rule = ToTerm("&") + new NonTerminal("expr", Identifier) | gscForFunction + variableExpr;
-            lazyFunction.Rule = ToTerm("@") + Identifier + "<" + Identifier + ".gsc" + ">" + "::" + Identifier | ToTerm("@") + Identifier + "<" + Identifier + ".csc" + ">" + "::" + Identifier;
+            lazyFunction.Rule = ToTerm("@") + Identifier + "<" + Identifier + ".gsc" + ">" + "::" + Identifier | 
+                                ToTerm("@") + Identifier + "<" + Identifier + ".csc" + ">" + "::" + Identifier;
 
             //Base Call Rules
             baseCall.Rule = Identifier + "::" + Identifier + parenCallParameters | Identifier + parenCallParameters;

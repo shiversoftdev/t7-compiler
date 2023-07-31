@@ -925,7 +925,12 @@ namespace TreyarchCompiler.Games
         {
             var ns = node.ChildNodes[1].Token.ValueString;
             var func = node.ChildNodes[node.ChildNodes.Count - 1].Token.ValueString;
-            var script = node.ChildNodes[3].Token.ValueString.ToLower().Replace("\\", "/") + node.ChildNodes[4].Token.ValueString.ToLower();
+            var script = node.ChildNodes[3].Token.ValueString.ToLower().Replace("\\", "/");
+            if (!script.StartsWith("script_"))
+            {
+                // add the .csc/.gsc only if we aren't using the hashed value
+                script += node.ChildNodes[4].Token.ValueString.ToLower();
+            }
             CurrentFunction.AddLazyGetFunction(Script.T8s64Hash(script), Script.T8Hash(ns), Script.T8Hash(func));
         }
 
