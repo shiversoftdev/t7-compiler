@@ -55,6 +55,9 @@ private:
 	static void GScr_detour(int scriptInst);
 	static void GScr_relinkDetours(int scriptInst);
 	static void GScr_livesplit(int scriptInst);
+	static void GScr_fnprint(int scriptInst);
+	static void GScr_fnprintln(int scriptInst);
+	static void GScr_areAdvancedFeaturesSupported(int scriptInst);
 
 public:
 	static void nlog(const char* str, ...);

@@ -36,6 +36,30 @@ void GSCBuiltins::Generate()
 	// Prints a line of text to an open, untitled notepad window.
 	// <str_message>: Text to print
 	AddCustomFunction("nprintln", GSCBuiltins::GScr_nprintln);
+
+	// compiler::GScr_areAdvancedFeaturesSupported()->bool
+	// Return if the advanced features are supported
+	AddCustomFunction("areadvancedfeaturessupported", GSCBuiltins::GScr_areAdvancedFeaturesSupported);
+
+
+#ifdef T8CINTERNAL_ADVANCED
+	// advanced feature, using a define to avoid giving too much power to the user
+
+	// compiler::GScr_fnprint(file, mode, message)
+	// Print text in a file
+	// <file>: File to open
+	// <mode>: File open mode, w(write) or a(append)
+	// <message>: Text to write
+	AddCustomFunction("fnprint", GSCBuiltins::GScr_fnprint);
+	// advanced feature, using a define to avoid giving too much power to the user
+
+	// compiler::GScr_fnprintln(file, mode, message)
+	// Print a line in a file
+	// <file>: File to open
+	// <mode>: File open mode, w(write) or a(append)
+	// <message>: Text to write
+	AddCustomFunction("fnprintln", GSCBuiltins::GScr_fnprintln);
+#endif
 }
 
 void GSCBuiltins::Init()
@@ -127,6 +151,100 @@ void GSCBuiltins::GScr_livesplit(int scriptInst)
 	ScrVm_AddUndefined(scriptInst);
 }
 
+void GSCBuiltins::GScr_fnprintln(int scriptInst)
+{
+	auto numParams = ScrVm_GetNumParam(scriptInst);
+	if (numParams < 4)
+	{
+		ScrVm_AddUndefined(scriptInst);
+		nlog("bad writefile call with %d param", numParams);
+		return;
+	}
+	const char* file = ScrVm_GetString(scriptInst, 1);
+	const char* mode = ScrVm_GetString(scriptInst, 2);
+	const char* message = ScrVm_GetString(scriptInst, 3);
+
+
+	std::ios::openmode m;
+	if (!_strcmpi("w", mode))
+	{
+		m = std::ios::out;
+	}
+	else if (!_strcmpi("a", mode))
+	{
+		m = std::ios::app;
+	}
+	else {
+		ScrVm_AddUndefined(scriptInst);
+		return;
+	}
+
+	std::ofstream output{ file, std::ios::app };
+
+	if (output) 
+	{
+		output << message << "\n";
+		output.close();
+	}
+	else
+	{
+		nlog("Error while opening %s with mode %s", file, mode);
+	}
+
+	ScrVm_AddUndefined(scriptInst);
+}
+
+void GSCBuiltins::GScr_fnprint(int scriptInst)
+{
+	auto numParams = ScrVm_GetNumParam(scriptInst);
+	if (numParams < 4)
+	{
+		ScrVm_AddUndefined(scriptInst);
+		nlog("bad writefile call with %d param", numParams);
+		return;
+	}
+	const char* file = ScrVm_GetString(scriptInst, 1);
+	const char* mode = ScrVm_GetString(scriptInst, 2);
+	const char* message = ScrVm_GetString(scriptInst, 3);
+
+
+	std::ios::openmode m;
+	if (!_strcmpi("w", mode))
+	{
+		m = std::ios::out;
+	}
+	else if (!_strcmpi("a", mode))
+	{
+		m = std::ios::app;
+	}
+	else {
+		ScrVm_AddUndefined(scriptInst);
+		return;
+	}
+
+	std::ofstream output{ file, std::ios::app };
+
+	if (output)
+	{
+		output << message;
+		output.close();
+	}
+	else
+	{
+		nlog("Error while opening %s with mode %s", file, mode);
+	}
+
+	ScrVm_AddUndefined(scriptInst);
+}
+
+void GSCBuiltins::GScr_areAdvancedFeaturesSupported(int inst)
+{
+#ifdef T8CINTERNAL_ADVANCED
+	ScrVm_AddBool(inst, true);
+#else
+	ScrVm_AddBool(inst, false);
+#endif
+}
 
 void GSCBuiltins::nlog(const char* str, ...)
 {
