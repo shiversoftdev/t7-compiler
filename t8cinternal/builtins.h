@@ -29,8 +29,9 @@ inline uint32_t t8hash(const char* key) {
 typedef INT64(__fastcall* tScrVm_GetInt)(unsigned int inst, unsigned int index);
 typedef char*(__fastcall* tScrVm_GetString)(unsigned int inst, unsigned int index);
 typedef INT64(__fastcall* tScrVm_GetNumParam)(unsigned int inst);
-typedef INT64(__fastcall* tScrVm_AddInt)(unsigned int inst, int64_t value);
-typedef INT64(__fastcall* tScrVm_AddBool)(unsigned int inst, bool value);
+typedef void(__fastcall* tScrVm_AddInt)(unsigned int inst, int64_t value);
+typedef void(__fastcall* tScrVm_AddBool)(unsigned int inst, bool value);
+typedef void(__fastcall* tScrVm_AddUndefined)(unsigned int inst);
 
 class GSCBuiltins
 {
@@ -42,9 +43,10 @@ public:
 	static tScrVm_GetNumParam ScrVm_GetNumParam;
 	static tScrVm_AddInt ScrVm_AddInt;
 	static tScrVm_AddBool ScrVm_AddBool;
+	static tScrVm_AddUndefined ScrVm_AddUndefined;
 
 private:
-	static INT64 Exec(int scriptInst);
+	static void Exec(int scriptInst);
 	static void Generate();
 	static std::unordered_map<int, void*> CustomFunctions;
 
@@ -53,6 +55,9 @@ private:
 	static void GScr_detour(int scriptInst);
 	static void GScr_relinkDetours(int scriptInst);
 	static void GScr_livesplit(int scriptInst);
+	static void GScr_fnprint(int scriptInst);
+	static void GScr_fnprintln(int scriptInst);
+	static void GScr_areAdvancedFeaturesSupported(int scriptInst);
 
 public:
 	static void nlog(const char* str, ...);

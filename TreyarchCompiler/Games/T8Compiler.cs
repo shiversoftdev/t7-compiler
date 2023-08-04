@@ -52,8 +52,9 @@ namespace TreyarchCompiler.Games
                 return data;
             }
             var assemble_ticks = DateTime.Now.Ticks;
-            try 
-            { 
+            try
+            {
+                data.RequiresGSI = Script.UsingGSI;
                 data.CompiledScript = Script.Serialize();
                 data.HashMap = Script.GetHashMap();
             } 
@@ -77,6 +78,11 @@ namespace TreyarchCompiler.Games
             return (byte)ExportFlags.AutoExec;
         }
 
+        private byte GetEventByVM()
+        {
+            return (byte)ExportFlags.Event;
+        }
+
         private byte GetPrivateByVM()
         {
             return (byte)ExportFlags.Private;
@@ -93,6 +99,7 @@ namespace TreyarchCompiler.Games
             {
                 byte flags = GetPrivateByVM();
                 var FunctionFrame = directive;
+                string callbackName = null;
                 switch (directive.ChildNodes[0].Term.Name.ToLower())
                 {
                     case "includes":
@@ -118,7 +125,12 @@ namespace TreyarchCompiler.Games
 
                     case "functionframe":
                         FunctionFrame = directive.ChildNodes[0];
-                        if(FunctionFrame.ChildNodes[0].Term.Name == "autoexec") flags |= GetAutoExecByVM();
+                        if (FunctionFrame.ChildNodes[0].Term.Name == "autoexec") flags |= GetAutoExecByVM();
+                        if (FunctionFrame.ChildNodes[0].Term.Name == "event")
+                        {
+                            flags |= GetEventByVM();
+                            callbackName = FunctionFrame.ChildNodes[2].Token.ValueString.ToLower();
+                        }
                         goto functionsLabel;
 
                     case "functions":
@@ -128,12 +140,13 @@ namespace TreyarchCompiler.Games
                         var Parameters = function.ChildNodes[function.ChildNodes.FindIndex(e => e.Term.Name == "parameters")].ChildNodes[0].ChildNodes;
                         if (FunctionMetadata.ContainsKey(functionName)) throw new ArgumentException($"Function '{functionName}' has been defined more than once.");
                         functionTree.Add(functionName, function);
-                        FunctionMetadata[functionName] = new ScriptFunctionMetaData()
-                        {
+                        FunctionMetadata[functionName] = new ScriptFunctionMetaData() {
                             FunctionHash = Script.T8Hash(functionName),
                             NamespaceHash = ScriptNamespace,
                             FunctionName = functionName,
                             NamespaceName = "treyarch",
+                            CallbackEventHash = callbackName == null ? 0 : Script.T8Hash(callbackName),
+                            CallbackEventName = callbackName,
                             NumParams = (byte)Parameters.Count,
                             Flags = flags
                         };
@@ -199,7 +212,7 @@ namespace TreyarchCompiler.Games
         private void EmitFunction(ParseTreeNode functionNode, string FunctionName)
         {
             var Parameters = functionNode.ChildNodes[functionNode.ChildNodes.FindIndex(e => e.Term.Name == "parameters")].ChildNodes[0].ChildNodes;
-            var CurrentFunction = Script.Exports.Add(FunctionMetadata[FunctionName].FunctionHash, FunctionMetadata[FunctionName].NamespaceHash, FunctionMetadata[FunctionName].NumParams);
+            var CurrentFunction = Script.Exports.Add(FunctionMetadata[FunctionName].FunctionHash, FunctionMetadata[FunctionName].NamespaceHash, FunctionMetadata[FunctionName].CallbackEventHash, FunctionMetadata[FunctionName].NumParams);
             CurrentFunction.Flags = FunctionMetadata[FunctionName].Flags;
             CurrentFunction.FriendlyName = FunctionName;
             foreach (var paramNode in Parameters) AddLocal(CurrentFunction, paramNode.FindTokenAndGetText());
@@ -492,6 +505,9 @@ namespace TreyarchCompiler.Games
                     case "vector":
                         CurrentOp.SetOperands = EmitVector(CurrentFunction, node, Context);
                         Push(CurrentOp);
+                        break;
+                    case "lazyFunction":
+                        EmitLazyFunctionPtr(CurrentFunction, node);
                         break;
 
                     case "shortHandArray":
@@ -917,6 +933,19 @@ namespace TreyarchCompiler.Games
             CurrentFunction.AddOp(ScriptOpCode.Vector);
         }
 
+        private void EmitLazyFunctionPtr(dynamic CurrentFunction, ParseTreeNode node)
+        {
+            var ns = node.ChildNodes[1].Token.ValueString;
+            var func = node.ChildNodes[node.ChildNodes.Count - 1].Token.ValueString;
+            var script = node.ChildNodes[3].Token.ValueString.ToLower().Replace("\\", "/");
+            if (!script.StartsWith("script_"))
+            {
+                // add the .csc/.gsc only if we aren't using the hashed value
+                script += node.ChildNodes[4].Token.ValueString.ToLower();
+            }
+            CurrentFunction.AddLazyGetFunction(Script.T8s64Hash(script), Script.T8Hash(ns), Script.T8Hash(func));
+        }
+
         private void EmitFunctionPtr(T89ScriptExport CurrentFunction, ParseTreeNode node, byte Numparams)
         {
             ParseTreeNode FuncNameNode = node.ChildNodes[node.ChildNodes.Count - 1];
@@ -1023,8 +1052,10 @@ namespace TreyarchCompiler.Games
         {
             public uint FunctionHash;
             public uint NamespaceHash;
+            public uint CallbackEventHash;
             public string FunctionName;
             public string NamespaceName;
+            public string CallbackEventName;
             public byte NumParams;
             public byte Flags;
 

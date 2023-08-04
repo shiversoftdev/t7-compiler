@@ -22,7 +22,12 @@ internal sealed class ConditionalBlocks
     {
         CompileTimeTokens.Clear();
         foreach (var token in tokens)
-            CompileTimeTokens.Add(token.ToLower().Trim());
+            AddConditionalTokens(token);
+    }
+
+    public void AddConditionalTokens(string token)
+    {
+        CompileTimeTokens.Add(token.ToLower().Trim());
     }
 
     private enum RBCBlockState

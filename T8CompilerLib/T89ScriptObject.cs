@@ -29,6 +29,7 @@ namespace T89CompilerLib
             "function_",
             "namespace_",
             "var_",
+            "event_",
             "hash_",
             "script_"
         };
@@ -116,6 +117,10 @@ namespace T89CompilerLib
             byte[] DataBuffer = new byte[0];
             Header.Commit(ref DataBuffer, ref __header__);
             Header.CommitHeader(ref DataBuffer, 0u);
+            if (UsingGSI)
+            {
+                EmitGSIHeader(ref DataBuffer);
+            }
             return DataBuffer;
         }
 
@@ -295,6 +300,50 @@ namespace T89CompilerLib
                 reader.ReadBytes(DetourNameMaxLength + 1 - 8);
             }
         }
+
+        public enum GSIFields
+        {
+            Detours = 0
+        }
+
+        private void EmitGSIHeader(ref byte[] data)
+        {
+            List<byte> NewHeader = new List<byte>();
+            NewHeader.AddRange(new byte[] { (byte)'G', (byte)'S', (byte)'I', (byte)'C' });
+            NewHeader.AddRange(BitConverter.GetBytes((int)0)); // num fields added
+
+            int numFields = 0;
+            // Emit Detours
+            if (Detours.Count > 0)
+            {
+                numFields++;
+
+                // Write the field type and the number of entries
+                NewHeader.AddRange(BitConverter.GetBytes((int)GSIFields.Detours));
+                NewHeader.AddRange(BitConverter.GetBytes(Detours.Count));
+
+                foreach (ScriptDetour detour in Detours.Values)
+                {
+                    // Apply post-serialize information
+                    detour.FixupOffset = Exports.ScriptExports[detour.FixupName].LoadedOffset;
+                    detour.FixupSize = Exports.ScriptExports[detour.FixupName].LoadedSize;
+
+                    // each detour should be exactly 256 bytes
+                    NewHeader.AddRange(detour.Serialize());
+                }
+            }
+
+            // copy the header
+            byte[] finalData = new byte[data.Length + NewHeader.Count];
+            NewHeader.ToArray().CopyTo(finalData, 0);
+
+            // write number of fields
+            BitConverter.GetBytes(numFields).CopyTo(finalData, 0x4);
+
+            // copy the gsc script
+            data.CopyTo(finalData, NewHeader.Count);
+            data = finalData;
+        }
     }
 
     /// <summary>
@@ -376,6 +425,11 @@ namespace T89CompilerLib
                 if (ReverseOps[GetVMType()].TryGetValue(indexer, out ushort val))
                     return val;
 
+                if (indexer == ScriptOpCode.LazyGetFunction)
+                {
+                    return 0x16; // hardcoded ig
+                }
+
                 Console.WriteLine($"Platform is missing opcode: {indexer.ToString()}");
                 return 0xFFFF; //invalid
             }
@@ -425,6 +479,7 @@ namespace T89CompilerLib
         RTLoaded = 0x1,
         AutoExec = 0x2,
         Private = 0x4,
-        VirtualParams = 0x20
+        VirtualParams = 0x20,
+        Event = 0x40
     }
 }

@@ -166,15 +166,16 @@ namespace T89CompilerLib.ScriptComponents
         /// </summary>
         /// <param name="FunctionID">Hashed function ID for export</param>
         /// <param name="NamespaceID">Hashed namespace ID for export</param>
+        /// <param name="CallbackEvent">Hashed callback ID for event export</param>
         /// <param name="NumParams">Number of parameters for this function</param>
         /// <returns>A new script export object. If the function already exists, a reference to the existing object.</returns>
-        public T89ScriptExport Add(uint FunctionID, uint NamespaceID, byte NumParams)
+        public T89ScriptExport Add(uint FunctionID, uint NamespaceID, uint CallbackEvent, byte NumParams)
         {
             if (ScriptExports.ContainsKey(FunctionID))
                 return ScriptExports[FunctionID];
             
             T89ScriptExport Previous = FirstExport?.Last();
-            T89ScriptExport export = T89ScriptExport.New(Previous, FunctionID, NamespaceID, NamespaceID, NumParams, Script);
+            T89ScriptExport export = T89ScriptExport.New(Previous, FunctionID, NamespaceID, CallbackEvent, NumParams, Script);
 
             if (FirstExport == null)
                 FirstExport = export;
@@ -248,7 +249,7 @@ namespace T89CompilerLib.ScriptComponents
         public T89ScriptObject Script { get; private set;}
         private T89ScriptExport(T89ScriptObject script) { Script = script; } //prevent public initializers
 
-        internal static T89ScriptExport New(T89ScriptExport Previous, uint fid, uint ns, uint ns2, byte pcount, T89ScriptObject script)
+        internal static T89ScriptExport New(T89ScriptExport Previous, uint fid, uint ns, uint ce, byte pcount, T89ScriptObject script)
         {
             T89ScriptExport Export = new T89ScriptExport(script);
             if (Previous != null)
@@ -258,7 +259,7 @@ namespace T89CompilerLib.ScriptComponents
             }
             Export.FunctionID = fid;
             Export.Namespace = ns;
-            Export.Namespace2 = ns2;
+            Export.CallbackEvent = ce;
             Export.NumParams = pcount;
             Export.Flags = 0;
             Export.Locals = new T89OP_SafeCreateLocalVariables();
@@ -278,9 +279,10 @@ namespace T89CompilerLib.ScriptComponents
         public uint LoadedOffset { get; private set; }
         public uint FunctionID { get; private set; }
         public uint Namespace { get; private set; }
-        public uint Namespace2 { get; private set; }
+        public uint CallbackEvent { get; private set; }
         public byte NumParams { get; private set; }
         public byte Flags { get; set; }
+        internal uint LoadedSize;
 
         /// <summary>
         /// This is used when we want to perform quick removes/adds from the table
@@ -403,7 +405,7 @@ namespace T89CompilerLib.ScriptComponents
 
             export.FunctionID = reader.ReadUInt32();
             export.Namespace = reader.ReadUInt32();
-            export.Namespace2 = reader.ReadUInt32();
+            export.CallbackEvent = reader.ReadUInt32();
             export.NumParams = reader.ReadByte();
             export.Flags = reader.ReadByte();
             export.FriendlyName = "func_" + export.FunctionID.ToString("X");
@@ -470,6 +472,8 @@ namespace T89CompilerLib.ScriptComponents
                 currOp?.Commit(ref OpCodeData, ref baseaddress, EmissionTable);
                 currOp = currOp.NextOpCode;
             }
+            LoadedOffset = (uint)ByteCodeAddress;
+            LoadedSize = baseaddress - (uint)ByteCodeAddress;
 
             byte[] NewBuffer = new byte[ByteCodeAddress + OpCodeData.Count];
 
@@ -487,7 +491,14 @@ namespace T89CompilerLib.ScriptComponents
             writer.Write(ByteCodeAddress);
             writer.Write(FunctionID);
             writer.Write(Namespace);
-            writer.Write(Namespace);
+            if (CallbackEvent == 0)
+            {
+                writer.Write(Namespace);
+            }
+            else
+            {
+                writer.Write(CallbackEvent);
+            }
             writer.Write(NumParams);
             writer.Write((byte)Flags);
             writer.Write((ushort)0x0);
@@ -633,6 +644,16 @@ namespace T89CompilerLib.ScriptComponents
         public T89OpCode AddGetString(T89StringTableEntry str, bool isIstring = false)
         {
             return __addop_internal(new T89OP_GetString(isIstring ? ScriptOpCode.GetIString : ScriptOpCode.GetString, str));
+        }
+
+        /// <summary>
+        /// Add a lazy get function reference
+        /// </summary>
+        /// <param name="str"></param>
+        /// <returns></returns>
+        public T89OpCode AddLazyGetFunction(ulong script, uint ns, uint func)
+        {
+            return __addop_internal(new T89OP_LazyGetFunction(ns, func, script));
         }
 
         /// <summary>
