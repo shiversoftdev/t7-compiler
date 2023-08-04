@@ -29,6 +29,7 @@ namespace T89CompilerLib
             "function_",
             "namespace_",
             "var_",
+            "event_",
             "hash_",
             "script_"
         };
@@ -478,6 +479,7 @@ namespace T89CompilerLib
         RTLoaded = 0x1,
         AutoExec = 0x2,
         Private = 0x4,
-        VirtualParams = 0x20
+        VirtualParams = 0x20,
+        Event = 0x40
     }
 }

@@ -153,7 +153,7 @@ namespace TreyarchCompiler
 
         #region Virtual
         protected virtual IdentifierTerminal IncludeIdentifier => new IdentifierTerminal("include_identifier", @"_/\", "_");
-        protected virtual NonTerminal FunctionFrame => new NonTerminal("functionFrame", ToTerm("autoexec", "autoexec") + functions | functions);
+        protected virtual NonTerminal FunctionFrame => new NonTerminal("functionFrame", ToTerm("autoexec", "autoexec") + functions | (ToTerm("event", "event") + "<" + Identifier + ">" + functions) | functions);
         protected virtual NonTerminal Overrides => new NonTerminal("overrides", Unsupported);
         protected virtual NonTerminal NameSpaceDirective => new NonTerminal("namespace", "#namespace" + Identifier + ";");
         protected virtual NonTerminal verbatimString => new NonTerminal("Unsupported", Unsupported);

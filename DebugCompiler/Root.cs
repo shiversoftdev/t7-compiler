@@ -642,7 +642,17 @@ namespace DebugCompiler
                 }
             }
 
+
+            if (!Directory.Exists(cfg.ScriptLocation))
+                return Error($"Script location is either not a directory or does not exist {args[0]}");
+
+            bool isT7 = cfg.Game == Games.T7;
+            cfg.ReplaceScript = cfg.ReplaceScript ?? (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
+            cfg.ReplaceScriptClient = cfg.ReplaceScriptClient ?? "scripts/zm_common/load.csc";
+
+
             // add custom symbol to control GSC/CSC script compilation
+            cfg.ConditionalSymbols.Add(isT7 ? "BO3" : "BO4");
             if (cfg.InjectClient)
             {
                 cfg.ConditionalSymbols.Add("_INJECT_CLIENT");
@@ -652,13 +662,23 @@ namespace DebugCompiler
             {
                 cfg.ConditionalSymbols.Add("_INJECT_SERVER");
             }
-
-            if (!Directory.Exists(cfg.ScriptLocation))
-                return Error($"Script location is either not a directory or does not exist {args[0]}");
-
-            bool isT7 = cfg.Game == Games.T7;
-            cfg.ReplaceScript = cfg.ReplaceScript ?? (isT7 ? @"scripts/shared/duplicaterender_mgr.gsc" : @"scripts/zm_common/load.gsc");
-            cfg.ReplaceScriptClient = cfg.ReplaceScriptClient ?? "scripts/zm_common/load.csc";
+            if (cfg.DllBuiltins)
+            {
+                cfg.ConditionalSymbols.Add("_SUPPORTS_BUILTINS");
+            }
+            if (cfg.DllDetours)
+            {
+                cfg.ConditionalSymbols.Add("_SUPPORTS_DETOURS");
+            }
+            if (cfg.DllLazyLink)
+            {
+                cfg.ConditionalSymbols.Add("_SUPPORTS_LAZYLINK");
+            }
+            cfg.ConditionalSymbols.Add("_SUPPORTS_GCSC");
+            if (cfg.Game == Games.T8)
+            {
+                cfg.ConditionalSymbols.Add("_SUPPORTS_EVENTFUNC");
+            }
 
             string hpath = "hashes.txt";
             StringBuilder hashes = new StringBuilder();
@@ -668,7 +688,7 @@ namespace DebugCompiler
             {
                 return Error("Inject server and inject client are both set to false");
             }
-
+            
             foreach (bool client in new bool[] { true, false })
             {
                 if (client)
@@ -695,7 +715,9 @@ namespace DebugCompiler
                 StringBuilder sb = new StringBuilder();
                 int CurrentLineCount = 0;
                 int CurrentCharCount = 0;
-                foreach (string f in Directory.GetFiles(cfg.ScriptLocation, client ? "*.csc" : "*.gsc", SearchOption.AllDirectories))
+                string[] instanceScripts = Directory.GetFiles(cfg.ScriptLocation, client ? "*.csc" : "*.gsc", SearchOption.AllDirectories);
+                string[] globalScripts = Directory.GetFiles(cfg.ScriptLocation, "*.gcsc", SearchOption.AllDirectories);
+                foreach (string f in instanceScripts.Concat(globalScripts))
                 {
                     var CurrentSource = new SourceTokenDef();
                     CurrentSource.FilePath = f.Replace(cfg.ScriptLocation, "").Substring(1).Replace("\\", "/");
@@ -718,8 +740,15 @@ namespace DebugCompiler
 
                 source = sb.ToString();
                 var ppc = new ConditionalBlocks();
-                cfg.ConditionalSymbols.Add(isT7 ? "BO3" : "BO4");
                 ppc.LoadConditionalTokens(cfg.ConditionalSymbols);
+                if (client)
+                {
+                    ppc.AddConditionalTokens("_CSC");
+                }
+                else
+                {
+                    ppc.AddConditionalTokens("_GSC");
+                }
 
                 try
                 {
