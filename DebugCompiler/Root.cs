@@ -36,6 +36,7 @@ namespace DebugCompiler
         private static string UpdaterURL = "https://gsc.dev/t7c_updater";
         private static string motdpath => Path.Combine(Application.StartupPath, "motd");
         private const int motdHrsRemindClear = 4; // number of hours between reminding users about the message of the day.
+        private static string T7ProcessName = "blackops3";
         static void motd()
         {
             var fi = new FileInfo(motdpath);
@@ -92,6 +93,10 @@ namespace DebugCompiler
                 }
             }
 
+            if(options.Contains("--boiii"))
+            {
+                T7ProcessName = "boiii.exe";
+            }
 
             Root root = new Root();
             if (options.Contains("--build") || options.Contains("--compile"))
@@ -870,7 +875,7 @@ namespace DebugCompiler
                     return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
                 }
             }
-            ProcessEx bo3 = "blackops3";
+            ProcessEx bo3 = T7ProcessName;
             if (bo3 == null)
             {
                 return Error("No game process found for Black Ops III.");
@@ -878,9 +883,9 @@ namespace DebugCompiler
             bo3.OpenHandle();
             bo3.SetDefaultCallType(ExCallThreadType.XCTT_QUAPC);
             OriginalPID = bo3.BaseProcess.Id;
-            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3[0x9407AB0]}");
-            var sptGlob = bo3.GetValue<ulong>(bo3[0x9407AB0]);
-            var sptCount = bo3.GetValue<int>(bo3[0x9407AB0 + 0x14]);
+            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3["blackops3.exe"][0x9407AB0]}");
+            var sptGlob = bo3.GetValue<ulong>(bo3["blackops3.exe"][0x9407AB0]);
+            var sptCount = bo3.GetValue<int>(bo3["blackops3.exe"][0x9407AB0 + 0x14]);
             var SPTEntries = bo3.GetArray<T7SPT>(sptGlob, sptCount);
             for (int i = 0; i < SPTEntries.Length; i++)
             {
@@ -1190,7 +1195,7 @@ namespace DebugCompiler
         private void FreeT7Script()
         {
             if (!llpModifiedSPTStruct) return;
-            ProcessEx bo3 = "blackops3";
+            ProcessEx bo3 = T7ProcessName;
             if (bo3 == null) return;
             if (bo3.BaseProcess.Id != OriginalPID) return;
             bo3.OpenHandle();

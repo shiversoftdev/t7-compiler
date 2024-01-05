@@ -149,12 +149,13 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <DebugInformationFormat>None</DebugInformationFormat>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <ControlFlowGuard>false</ControlFlowGuard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
     </Link>
   </ItemDefinitionGroup>
