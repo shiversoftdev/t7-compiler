@@ -47,7 +47,7 @@ namespace T89CompilerLib.OpCodes
             {
                 case ScriptOperandType.UInt32:
                 case ScriptOperandType.Int32:
-                    try { BitConverter.GetBytes(uint.Parse(Value.ToString().Replace("-", ""))).CopyTo(data, DataAddress); }
+                    try { BitConverter.GetBytes(uint.Parse(Value.ToString().Replace("-", ""))).CopyTo(data, DataAddress); } // this is a hack due to new opcodes in t8
                     catch { BitConverter.GetBytes(int.Parse(Value.ToString())).CopyTo(data, DataAddress); }
                     break;
                 case ScriptOperandType.Float:
@@ -124,7 +124,7 @@ namespace T89CompilerLib.OpCodes
                     return ScriptOpCode.GetNegUnsignedShort;
             }
 
-            return unknown > 0 ? ScriptOpCode.GetUnsignedInteger : ScriptOpCode.GetInteger;
+            return unknown > 0 ? ScriptOpCode.GetUnsignedInteger : ScriptOpCode.GetNegUnsignedInteger;
         }
 
         public override string ToString()

@@ -320,6 +320,11 @@ namespace T89CompilerLib
                         while(i < tbuff.Length)
                         {
                             byte _vm = tbuff[i];
+                            bool IsConsole = tbuff[i + 1] == 1;
+                            if(IsConsole)
+                            {
+                                _vm |= 0x80;
+                            }
                             ushort count = BitConverter.ToUInt16(tbuff, i + 2);
                             __OperationData[_vm] = tbuff.Skip(i + 4).Take(count).ToArray();
                             i += 4 + count;
