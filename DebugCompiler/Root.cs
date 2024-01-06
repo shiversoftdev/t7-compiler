@@ -98,6 +98,11 @@ namespace DebugCompiler
                 T7ProcessName = "boiii";
             }
 
+            if (options.Contains("--t7x"))
+            {
+                T7ProcessName = "t7x";
+            }
+
             Root root = new Root();
             if (options.Contains("--build") || options.Contains("--compile"))
             {
