@@ -94,8 +94,8 @@ namespace DebugCompiler
             }
 
             if(options.Contains("--boiii"))
-            {
-                T7ProcessName = "boiii.exe";
+            { 
+                T7ProcessName = "boiii";
             }
 
             Root root = new Root();

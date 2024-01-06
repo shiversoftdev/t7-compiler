@@ -169,6 +169,14 @@ namespace t7c_installer
         {
             if (IsUpdating) return;
             IsUpdating = true;
+
+            // kill all running instances of the compiler
+            foreach (var proc in Process.GetProcessesByName("debugcompiler"))
+            {
+                proc.Kill();
+                System.Threading.Thread.Sleep(100);
+            }
+
             // cache update contents
             FetchUpdateContents();
 
