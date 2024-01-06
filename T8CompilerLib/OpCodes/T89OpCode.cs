@@ -280,7 +280,7 @@ namespace T89CompilerLib.OpCodes
         ClassFunctionThreadCall2,
         EvalLocalVariableCached2,
         EvalLocalVariableRefCached2,
-        GetNegUnsignedInteger,
+        GetNegUnsignedInteger = 192,
         Invalid = 0xFF,
     }
 
