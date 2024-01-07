@@ -467,6 +467,9 @@ namespace T89CompilerLib.OpCodes
             new ScriptOpMetadata(ScriptOpCode.ClassFunctionThreadCall2,         ScriptOpType.Call,              ScriptOperandType.Call),
             new ScriptOpMetadata(ScriptOpCode.EvalLocalVariableCached2,         ScriptOpType.Variable,          ScriptOperandType.UInt8),
             new ScriptOpMetadata(ScriptOpCode.EvalLocalVariableRefCached2,      ScriptOpType.VariableReference, ScriptOperandType.UInt8),
+            null, null, null, null, null, null, null, null, null, null,
+            null, null, null, null, null, null, null, null, null,
+            new ScriptOpMetadata(ScriptOpCode.GetNegUnsignedInteger,            ScriptOpType.StackPush,         ScriptOperandType.UInt32), // at this point it would have been easier to just add cold war ffs
         };
 
         /// <summary>
