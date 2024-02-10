@@ -160,6 +160,7 @@ namespace TreyarchCompiler.Games
                 foreach (var directive in _tree.Root.ChildNodes[0].ChildNodes[0].ChildNodes.OrderBy(x => x.ChildNodes[0].Term.Name.ToLower() == "functions"))
                 {
                     byte flags = (byte)0;
+                    int emit_priority = -1;
                     var FunctionFrame = directive;
                     switch (directive.ChildNodes[0].Term.Name.ToLower())
                     {
@@ -179,7 +180,13 @@ namespace TreyarchCompiler.Games
 
                             FunctionFrame = directive.ChildNodes[0];
                             if (Game != Enums.Games.T6 && FunctionFrame.ChildNodes[0].Term.Name == "autoexec")
+                            {
                                 flags |= (byte)ExportFlags.AutoExec;
+                                if(FunctionFrame.ChildNodes[0].ChildNodes.Count > 1)
+                                {
+                                    emit_priority = (int)FunctionFrame.ChildNodes[0].ChildNodes[1].Token.Value;
+                                }
+                            }
 
                             goto functionsLabel;
 
@@ -200,7 +207,8 @@ namespace TreyarchCompiler.Games
                                 FunctionName = functionName,
                                 NamespaceName = "ilcustom",
                                 NumParams = (byte)Parameters.Count,
-                                Flags = flags
+                                Flags = flags,
+                                EmitPriority = emit_priority
                             };
 
                             break;
@@ -218,7 +226,8 @@ namespace TreyarchCompiler.Games
                                 NamespaceName = "ilcustom",
                                 NumParams = (byte)detour_parameters.Count,
                                 Flags = 0, // detours are not private
-                                IsDetour = true
+                                IsDetour = true,
+                                EmitPriority = -1
                             };
 
                             var detourPathIndex = detour.ChildNodes.FindIndex(e => e.Term.Name == "detourPath");
@@ -256,6 +265,7 @@ namespace TreyarchCompiler.Games
             dynamic CurrentFunction = CreateFunction(functionNode, FunctionName);
             CurrentFunction.Flags = FunctionMetadata[FunctionName].Flags;
             CurrentFunction.FriendlyName = FunctionName;
+            CurrentFunction.Priority = FunctionMetadata[FunctionName].EmitPriority;
 
             foreach (var paramNode in Parameters)
                 AddLocal(CurrentFunction, paramNode.FindTokenAndGetText().ToLower());
@@ -515,6 +525,13 @@ namespace TreyarchCompiler.Games
                         {
                             throw new ArgumentException("Tried to hash string '" + node.ChildNodes[1].Token.ValueString.ToLower() + "', but it is not a hash value.");
                         }
+                        break;
+
+                    case "canonHashed":
+                        if (Game == Enums.Games.T6)
+                            throw new ArgumentException("Cannot hash a string for this game.");
+
+                        CurrentFunction.AddGetHash(Script.ScriptHash(node.ChildNodes[1].Token.ValueString));
                         break;
 
                     case "iString":
@@ -1559,6 +1576,7 @@ namespace TreyarchCompiler.Games
             public byte NumParams;
             public byte Flags;
             public bool IsDetour;
+            public int EmitPriority;
         }
 
         private class QOperand

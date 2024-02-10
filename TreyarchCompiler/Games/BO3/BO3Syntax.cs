@@ -31,11 +31,13 @@ namespace TreyarchCompiler.Games.BO3
         #endregion
 
         #region Virtual
-        protected override NonTerminal FunctionFrame => new NonTerminal("functionFrame", ToTerm("autoexec", "autoexec") + functions | functions | ToTerm("function") + ToTerm("autoexec", "autoexec") + functions | ToTerm("function") + functions);
+        private NonTerminal autoexec_priority => new NonTerminal("autoexec", ToTerm("autoexec", "autoexec_p") + "(" + NumberLiteral + ")" | ToTerm("autoexec", "autoexec_p"));
+        protected override NonTerminal FunctionFrame => new NonTerminal("functionFrame", autoexec_priority + functions | functions | ToTerm("function") + autoexec_priority + functions | ToTerm("function") + functions);
         protected override NonTerminal NameSpaceDirective => new NonTerminal("namespace", "#namespace" + Identifier + ";");
         protected override NonTerminal verbatimString => new NonTerminal("verbatimString", Unsupported);
         protected override NonTerminal iString => new NonTerminal("iString", ToTerm("&") + StringLiteral);
         protected override NonTerminal hashedString => new NonTerminal("hashedString", ToTerm("#") + StringLiteral);
+        protected override NonTerminal canonHashed => new NonTerminal("canonHashed", ToTerm("#") + Identifier);
         //protected override NonTerminal usingTree => new NonTerminal("usingTree", ToTerm("#using_animtree") + "(" + StringLiteral + ")" + ";");
         #endregion
     }

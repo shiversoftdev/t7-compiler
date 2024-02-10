@@ -152,6 +152,7 @@ namespace TreyarchCompiler
         protected virtual NonTerminal NameSpaceDirective => new NonTerminal("namespace", Unsupported);
         protected virtual NonTerminal verbatimString => new NonTerminal("verbatimString", ToTerm("@") + StringLiteral);
         protected virtual NonTerminal hashedString => new NonTerminal("hashedString", Unsupported);
+        protected virtual NonTerminal canonHashed => new NonTerminal("canonHashed", Unsupported);
         protected virtual NonTerminal iString => new NonTerminal("iString", ToTerm("&") + StringLiteral);
         protected virtual NonTerminal usingTree => new NonTerminal("usingTree", Unsupported);
         protected virtual NonTerminal animTree => new NonTerminal("animTree", Unsupported);
@@ -259,7 +260,7 @@ namespace TreyarchCompiler
             #region Expressions
             //Master Expresssion Rules
             expr.Rule = parenExpr | mathExpr | animRef | animTree | boolNot;
-            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | newArray | size | iString | hashedString | vector;
+            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | newArray | size | iString | hashedString | canonHashed | vector;
             variableExpr.Rule = parenVariableExpr | directAccess | definedAccess | call | Identifier | getFunction | localFunction | lazyFunction | array;
 
             //Parenthesis

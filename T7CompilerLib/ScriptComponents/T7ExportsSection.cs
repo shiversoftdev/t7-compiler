@@ -98,16 +98,69 @@ namespace T7CompilerLib.ScriptComponents
             throw new InvalidOperationException("Cannot serialize the exports section!");
         }
 
+        private List<T7ScriptExport> PrioritizedExports()
+        {
+            List<T7ScriptExport> sorted = new List<T7ScriptExport>(ScriptExports.Count);
+
+            int lastInsert = -1;
+            for(T7ScriptExport exp = FirstExport; exp != null; exp = exp.NextExport)
+            {
+                if (exp.Priority < 0)
+                {
+                    sorted.Add(exp);
+                    continue;
+                }
+
+                if(lastInsert == -1)
+                {
+                    lastInsert = 0;
+                    sorted.Insert(0, exp);
+                    continue;
+                }
+                
+                if(sorted[lastInsert].Priority == exp.Priority)
+                {
+                    sorted.Insert(lastInsert, exp);
+                    continue;
+                }
+
+                if(sorted[lastInsert].Priority > exp.Priority)
+                {
+                    do --lastInsert;
+                    while (lastInsert > -1 && sorted[lastInsert].Priority > exp.Priority);
+                    sorted.Insert(++lastInsert, exp);
+                    continue;
+                }
+
+                if (sorted[lastInsert].Priority < exp.Priority)
+                {
+                    do ++lastInsert;
+                    while (lastInsert < sorted.Count && sorted[lastInsert].Priority < exp.Priority);
+                    sorted.Insert(lastInsert, exp);
+                    continue;
+                }
+            }
+
+            return sorted;
+        }
+
         public override void Commit(ref byte[] RawData, ref T7ScriptHeader Header)
         {
-            int BaseOffset = RawData.Length;
+            int _BaseOffset = RawData.Length;
+            uint BaseOffset = (uint)RawData.Length;
 
             byte[] NewBuffer = new byte[RawData.Length + HeaderSize()];
 
             RawData.CopyTo(NewBuffer, 0);
             RawData = NewBuffer;
 
-            FirstExport?.Commit(ref RawData, (uint)BaseOffset, Header, ScriptMetadata);
+            var exports = PrioritizedExports();
+            foreach (var export in exports)
+            {
+                export.Commit(ref RawData, ref BaseOffset, Header, ScriptMetadata);
+            }
+
+            // FirstExport?.Commit(ref RawData, ref BaseOffset, Header, ScriptMetadata);
 
             //We have to copy again because we need to enforce our section alignment rules
             byte[] FinalBuffer = new byte[(uint)(RawData.Length).AlignValue(0x10)];
@@ -115,7 +168,7 @@ namespace T7CompilerLib.ScriptComponents
 
             RawData = FinalBuffer;
 
-            CommitSize = (uint)(RawData.Length - BaseOffset);
+            CommitSize = (uint)(RawData.Length - _BaseOffset);
 
             UpdateHeader(ref Header);
             NextSection?.Commit(ref RawData, ref Header);
@@ -288,6 +341,7 @@ namespace T7CompilerLib.ScriptComponents
         public byte NumParams { get; private set; }
         public uint ExportID { get; set; }
         public byte Flags { get; set; }
+        public int Priority { get; set; }
 
         public uint LoadedOffset;
         internal uint LoadedSize;
@@ -445,7 +499,7 @@ namespace T7CompilerLib.ScriptComponents
             return codes.ToArray();
         }
 
-        public void Commit(ref byte[] data, uint NextExportPtr, T7ScriptHeader header, T7ScriptMetadata EmissionTable)
+        public void Commit(ref byte[] data, ref uint NextExportPtr, T7ScriptHeader header, T7ScriptMetadata EmissionTable)
         {
             List<byte> OpCodeData = new List<byte>();
 
@@ -498,8 +552,6 @@ namespace T7CompilerLib.ScriptComponents
             LoadedOffset = (uint)ByteCodeAddress;
 
             NextExportPtr += T7ExportsSection.EXPORT_ENTRY_SIZE;
-
-            NextExport?.Commit(ref data, NextExportPtr, header, EmissionTable);
         }
 
         public void LinkBack(T7ScriptExport Previous)
