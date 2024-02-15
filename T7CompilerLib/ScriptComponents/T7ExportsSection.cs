@@ -610,6 +610,7 @@ namespace T7CompilerLib.ScriptComponents
                 case ScriptOpCode.End:
                 case ScriptOpCode.Wait:
                 case ScriptOpCode.GetUndefined:
+                case ScriptOpCode.SuperEqual:
                     return __addop_internal(new T7OpCode(OpCode, Endianess));
 
                 default:

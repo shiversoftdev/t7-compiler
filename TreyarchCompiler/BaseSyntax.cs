@@ -1,7 +1,7 @@
 ﻿using Irony.Parsing;
 
 //From Serious: Never again :)
-
+// TODO: struct shorthand, varargs, byref
 namespace TreyarchCompiler
 {
     [Language("Game Script", "Shared 4.0", "GSC Grammar For Call of Duty, Created By: Bog && Serious")]
@@ -75,6 +75,8 @@ namespace TreyarchCompiler
         protected NonTerminal vector { private set; get; }
         protected NonTerminal size { private set; get; }
         protected NonTerminal shortHandArray { private set; get; }
+        protected NonTerminal comparitorType { private set; get; }
+        protected NonTerminal castType { private set; get; }
         #endregion
 
         #region Calls
@@ -189,8 +191,8 @@ namespace TreyarchCompiler
             MarkPunctuation("(", ")", "{", "}", "[", "]", ",", ".", ";", "::", "[[", "]]", "@", "#define", "#include", "#using_animtree", "->", "?.", "function");
 
             //Operators
-            RegisterOperators(1, "||", "?|");
-            RegisterOperators(2, "&&", "?&");
+            RegisterOperators(1, "||", "?|", "or");
+            RegisterOperators(2, "&&", "?&", "and");
             RegisterOperators(3, "|");
             RegisterOperators(4, "^");
             RegisterOperators(5, "&");
@@ -229,12 +231,14 @@ namespace TreyarchCompiler
             //Master Boolean Rules
             booleanExpression.Rule = boolExprOperand | booleanAndExpression | booleanOrExpression;
             booleanAndExpression.Rule = booleanExpression + ToTerm("&&") + booleanExpression | 
-                                        booleanExpression + ToTerm("?&") + booleanExpression;
+                                        booleanExpression + ToTerm("?&") + booleanExpression | 
+                                        booleanExpression + ToTerm("and") + booleanExpression;
             booleanOrExpression.Rule = blorOp + ToTerm("||") + blorOp |
                                        blorOp + ToTerm("?|") + blorOp |
                                        booleanExpression + ToTerm("||") + booleanExpression |
-                                       booleanExpression + ToTerm("?|") + booleanExpression;
-            boolNot.Rule = ToTerm("!") + boolNotOperand;
+                                       booleanExpression + ToTerm("?|") + booleanExpression |
+                                       booleanExpression + ToTerm("or") + booleanExpression;
+            boolNot.Rule = ToTerm("!") + boolNotOperand | ToTerm("not") + boolNotOperand;
             
 
             //Parenthesis
@@ -248,13 +252,18 @@ namespace TreyarchCompiler
 
             //Conditional
             conditionalStatement.Rule = booleanExpression + ToTerm("?") + booleanExpression + ToTerm(":") + booleanExpression;
-            
+            comparitorType.Rule = ToTerm("int") | ToTerm("float") | ToTerm("vec") | ToTerm("undefined") | ToTerm("defined") | ToTerm("string") | ToTerm("array") | ToTerm("function") | ToTerm("true") | ToTerm("false");
+            castType.Rule = ToTerm("int") | ToTerm("float") | ToTerm("istring");
+
             //Boolean Operand
             boolOperand.Rule =  new NonTerminal("undefined_coalesce", boolExprOperand + ToTerm("??") + boolExprOperand) |
                                 new NonTerminal("pemdas", expression) |
                                 new NonTerminal("relationalExpression", boolExprOperand + relationalOperator + boolExprOperand) |
                                 new NonTerminal("relationalExpression", boolExprOperand + equalityOperator + boolExprOperand) |
-                                conditionalStatement;
+                                conditionalStatement |
+                                new NonTerminal("typeComparison", boolExprOperand + ToTerm("is") + comparitorType) |
+                                new NonTerminal("typeComparisonInverted", boolExprOperand + ToTerm("is") + ToTerm("not") + comparitorType) |
+                                new NonTerminal("castOp", boolExprOperand + ToTerm("as") + castType);
             #endregion
 
             #region Expressions
@@ -494,6 +503,8 @@ namespace TreyarchCompiler
             functionDetour = new NonTerminal("functionDetour");
             detourPath = new NonTerminal("detourPath");
             pragmaStripped = new NonTerminal("pragmaStripped");
+            comparitorType = new NonTerminal("comparitorType");
+            castType = new NonTerminal("castType");
             Root = new NonTerminal("program") { Rule = directives };
         }
     }

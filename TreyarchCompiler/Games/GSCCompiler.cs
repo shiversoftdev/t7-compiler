@@ -499,6 +499,21 @@ namespace TreyarchCompiler.Games
                         Push(CurrentOp);
                         break;
 
+                    case "typeComparison":
+                        CurrentOp.SetOperands = EmitTypeComparitor(CurrentFunction, node, Context);
+                        Push(CurrentOp);
+                        break;
+
+                    case "typeComparisonInverted":
+                        CurrentOp.SetOperands = EmitTypeComparitor(CurrentFunction, node, Context, true);
+                        Push(CurrentOp);
+                        break;
+
+                    case "castOp":
+                        CurrentOp.SetOperands = EmitTypeConverter(CurrentFunction, node, Context);
+                        Push(CurrentOp);
+                        break;
+
                     case "include_identifier":
                     case "identifier":
                         string LocalToLower = node.Token.ValueString.ToLower();
@@ -1297,6 +1312,73 @@ namespace TreyarchCompiler.Games
             }
         }
 
+        private IEnumerable<QOperand> EmitTypeConverter(dynamic CurrentFunction, ParseTreeNode node, uint Context)
+        {
+            string swval = node.ChildNodes[2].ChildNodes[0].Term.Name;
+            switch (swval)
+            {
+                case "int":
+                case "float":
+                case "istring":
+                    CurrentFunction.AddOp(DynOp(ScriptOpCode.PreScriptCall));
+                    yield return new QOperand(CurrentFunction, node.ChildNodes[0], 0);
+                    CurrentFunction.AddCall(Script.Imports.AddImport(Script.ScriptHash($"{swval}"), ScriptNamespace, (byte)1, (byte)ImportFlags.IsFunction | (byte)ImportFlags.NeedsResolver), Context);
+                    break;
+
+                default:
+                    throw new NotFiniteNumberException($"Compiler failure: {swval} is not implemented for 'as' operator.");
+            }
+        }
+
+        private IEnumerable<QOperand> EmitTypeComparitor(dynamic CurrentFunction, ParseTreeNode node, uint Context, bool inverted = false)
+        {
+            int offset = inverted ? 1 : 0;
+            string swval = node.ChildNodes[2 + offset].ChildNodes[0].Term.Name;
+            if(swval == "function")
+            {
+                swval = "functionptr";
+            }
+
+            switch (swval)
+            {
+                case "true":
+                case "false":
+                    yield return new QOperand(CurrentFunction, node.ChildNodes[0], 0);
+                    (CurrentFunction as T7ScriptExport).AddGetNumber((int)("true" == swval ? 1 : 0));
+                    CurrentFunction.AddOp(DynOp(ScriptOpCode.SuperEqual));
+                    break;
+
+                case "undefined":
+                case "defined":
+                    yield return new QOperand(CurrentFunction, node.ChildNodes[0], 0);
+                    CurrentFunction.AddOp(DynOp(ScriptOpCode.IsDefined));
+                    if(swval == "undefined")
+                    {
+                        CurrentFunction.AddOp(DynOp(ScriptOpCode.BoolNot));
+                    }
+                    break;
+
+                case "float":
+                case "functionptr":
+                case "string":
+                case "array":
+                case "vec":
+                case "int":
+                    CurrentFunction.AddOp(DynOp(ScriptOpCode.PreScriptCall));
+                    yield return new QOperand(CurrentFunction, node.ChildNodes[0], 0);
+                    CurrentFunction.AddCall(Script.Imports.AddImport(Script.ScriptHash($"is{swval}"), ScriptNamespace, (byte)1, (byte)ImportFlags.IsFunction | (byte)ImportFlags.NeedsResolver), Context);
+                    break;
+
+                default:
+                    throw new NotFiniteNumberException($"Compiler failure: {swval} is not implemented for 'is' operator.");
+            }
+
+            if(inverted)
+            {
+                CurrentFunction.AddOp(DynOp(ScriptOpCode.BoolNot));
+            }
+        }
+
         private IEnumerable<QOperand> EmitBoolExpr(dynamic CurrentFunction, ParseTreeNode node, uint Context)
         {
             switch (node.ChildNodes.Count)
@@ -1315,7 +1397,7 @@ namespace TreyarchCompiler.Games
                     {
                         CurrentFunction.AddOp(DynOp(ScriptOpCode.IsDefined));
                     }
-                    dynamic target = node.ChildNodes[1].Term.Name[1] == '&' ? DynOp(ScriptOpCode.JumpOnFalseExpr) : DynOp(ScriptOpCode.JumpOnTrueExpr);
+                    dynamic target = (node.ChildNodes[1].Term.Name[1] == '&' || node.ChildNodes[1].Term.Name[1] == 'n') ? DynOp(ScriptOpCode.JumpOnFalseExpr) : DynOp(ScriptOpCode.JumpOnTrueExpr);
                     dynamic __jmp = CurrentFunction.AddJump(target);
                     yield return new QOperand(CurrentFunction, node.ChildNodes[2], 0);
                     __jmp.After = CurrentFunction.Locals.GetEndOfChain();
