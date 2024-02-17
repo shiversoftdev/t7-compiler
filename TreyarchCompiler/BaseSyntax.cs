@@ -252,8 +252,8 @@ namespace TreyarchCompiler
 
             //Conditional
             conditionalStatement.Rule = booleanExpression + ToTerm("?") + booleanExpression + ToTerm(":") + booleanExpression;
-            comparitorType.Rule = ToTerm("int") | ToTerm("float") | ToTerm("vec") | ToTerm("undefined") | ToTerm("defined") | ToTerm("string") | ToTerm("array") | ToTerm("function") | ToTerm("true") | ToTerm("false");
-            castType.Rule = ToTerm("int") | ToTerm("float") | ToTerm("istring");
+            comparitorType.Rule = ToTerm("int", "identifier") | ToTerm("float", "identifier") | ToTerm("vec", "identifier") | ToTerm("undefined", "identifier") | ToTerm("defined", "identifier") | ToTerm("string", "identifier") | ToTerm("array", "identifier") | ToTerm("function", "identifier") | ToTerm("true", "identifier") | ToTerm("false", "identifier");
+            castType.Rule = ToTerm("int", "identifier") | ToTerm("float", "identifier") | ToTerm("istring", "identifier");
 
             //Boolean Operand
             boolOperand.Rule =  new NonTerminal("undefined_coalesce", boolExprOperand + ToTerm("??") + boolExprOperand) |

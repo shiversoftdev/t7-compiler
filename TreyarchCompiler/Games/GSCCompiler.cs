@@ -1314,7 +1314,7 @@ namespace TreyarchCompiler.Games
 
         private IEnumerable<QOperand> EmitTypeConverter(dynamic CurrentFunction, ParseTreeNode node, uint Context)
         {
-            string swval = node.ChildNodes[2].ChildNodes[0].Term.Name;
+            string swval = node.ChildNodes[2].ChildNodes[0].Token.Value.ToString();
             switch (swval)
             {
                 case "int":
@@ -1333,7 +1333,7 @@ namespace TreyarchCompiler.Games
         private IEnumerable<QOperand> EmitTypeComparitor(dynamic CurrentFunction, ParseTreeNode node, uint Context, bool inverted = false)
         {
             int offset = inverted ? 1 : 0;
-            string swval = node.ChildNodes[2 + offset].ChildNodes.Count > 0 ? node.ChildNodes[2 + offset].ChildNodes[0].Term.Name : "functionptr";
+            string swval = node.ChildNodes[2 + offset].ChildNodes.Count > 0 ? node.ChildNodes[2 + offset].ChildNodes[0].Token.Value.ToString() : "functionptr";
 
             switch (swval)
             {
