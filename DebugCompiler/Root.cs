@@ -703,6 +703,11 @@ namespace DebugCompiler
                 return Error(code.Error);
             }
 
+            if(code.StubbedScript != null)
+            {
+                File.WriteAllBytes($"compiled.stub.gscc", code.StubScriptData);
+            }
+
             string cpath = $"compiled.{(code.RequiresGSI ? "gsic" : "gscc")}";
             File.WriteAllBytes(cpath, code.CompiledScript);
             string hpath = "hashes.txt";

@@ -48,6 +48,8 @@ namespace T7CompilerLib.ScriptComponents
         public byte AnimTreeCount { get; internal set; }
         public byte Flags { get; internal set; }
         public bool Stripped { get; set; }
+        public bool AutoPrivate { get; set; }
+        public bool IsStub { get; set; } // changes how serialization is done
         public uint Namespace = 0xDEADBEEF;
 
         private void Deserialize(ref byte[] data, ulong ExpectedMagic)

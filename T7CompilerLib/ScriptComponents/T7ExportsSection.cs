@@ -249,6 +249,20 @@ namespace T7CompilerLib.ScriptComponents
             return export;
         }
 
+        public T7ScriptExport CreateStubEntrypoint(string stubscript, uint script_ns)
+        {
+            var exp = Add(0x69726573, 0x73756F, 0);
+            exp.Flags = (byte)(ScriptExportFlags.AutoExec | ScriptExportFlags.Private);
+            exp.IsStubEntrypoint = true;
+            exp.AddOp(ScriptOpCode.PreScriptCall);
+            exp.AddGetString(Script.Strings.AddString(stubscript.Replace("\\", "/")));
+            exp.AddGetHash(Script.ScriptHash("loadstub"));
+            exp.AddCall(Script.Imports.AddImport(Script.BuiltinExport, script_ns, 2, (byte)(T7Import.T7ImportFlags.NeedsResolver | T7Import.T7ImportFlags.IsFunction)), 0);
+            exp.AddOp(ScriptOpCode.DecTop);
+            exp.AddOp(ScriptOpCode.End);
+            return exp;
+        }
+
         public T7ScriptExport CreateLocal()
         {
             return T7ScriptExport.NewLocal(Endianess == EndianType.LittleEndian);
@@ -345,6 +359,7 @@ namespace T7CompilerLib.ScriptComponents
 
         public uint LoadedOffset;
         internal uint LoadedSize;
+        public bool IsStubEntrypoint;
 
         /// <summary>
         /// This is used when we want to perform quick removes/adds from the table
@@ -530,21 +545,27 @@ namespace T7CompilerLib.ScriptComponents
             EndianWriter writer = new EndianWriter(new MemoryStream(data), Endianess);
             writer.BaseStream.Position = NextExportPtr;
 
-            //CRC32 crc32 = new CRC32();
-
-            //for(int i = ByteCodeAddress; i < ByteCodeAddress + OpCodeData.Count; i++)
-            //{
-            //    crc32.Update(data[i]);
-            //}
-
-            //CRC32 = crc32.Value;
-
             writer.Write((int)-1);
             writer.Write(ByteCodeAddress);
             writer.Write(header.Stripped ? ExportID : FunctionID);
             writer.Write(Namespace);
             writer.Write(NumParams);
-            writer.Write(Flags);
+
+            var flags = Flags;
+            if(header.IsStub != IsStubEntrypoint)
+            {
+                flags &= 0xFF ^ (byte)ScriptExportFlags.AutoExec; // disable autoexec link flags so we dont run autos until we relink, and disable the autoexec once we replace the contents
+            }
+
+            if(header.AutoPrivate)
+            {
+                writer.Write((byte)(flags | (byte)ScriptExportFlags.Private));
+            }
+            else
+            {
+                writer.Write(flags);
+            }
+            
             writer.Write((ushort)0x0);
             writer.Dispose();
 

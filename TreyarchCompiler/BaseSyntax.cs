@@ -54,6 +54,8 @@ namespace TreyarchCompiler
         protected NonTerminal detourPath { private set; get; }
         protected NonTerminal pragmaStripped { private set; get; }
         protected NonTerminal pragmaLazyStrings { private set; get; }
+        protected NonTerminal pragmaPrivate { private set; get; }
+        protected NonTerminal pragmaStub { private set; get; }
         #endregion
 
         #region Boolean
@@ -220,14 +222,18 @@ namespace TreyarchCompiler
             #region Directives
             //Master Directive Rules
             directives.Rule = MakeStarRule(directives, null, directive);
-            directive.Rule = Empty | Overrides | includes | globals | FunctionFrame | NameSpaceDirective | usingTree | functionDetour | pragmaStripped | pragmaLazyStrings;
+            directive.Rule = Empty | Overrides | includes | globals | FunctionFrame | NameSpaceDirective | usingTree | functionDetour | pragmaStripped | pragmaLazyStrings | pragmaPrivate | pragmaStub;
 
             //Includes
             includes.Rule = ToTerm("#include") + IncludeIdentifier + ";" | 
                             ToTerm("#using") + IncludeIdentifier + ";";
 
+            pragmaStub.Rule = ToTerm("#pragma") + ToTerm("stub", "identifier") + "<" + Identifier + ".gsc" + ">" + ";" |
+                              ToTerm("#pragma") + ToTerm("stub", "identifier") + "<" + Identifier + ".csc" + ">" + ";";
             pragmaStripped.Rule = ToTerm("#pragma") + ToTerm("stripped", "identifier") + ";";
             pragmaLazyStrings.Rule = ToTerm("#pragma") + ToTerm("lazystrings", "identifier") + "(" + ToTerm("on", "identifier") + ")" | ToTerm("#pragma") + ToTerm("lazy_strings", "identifier") + "(" + ToTerm("off", "identifier") + ")";
+            pragmaPrivate.Rule = ToTerm("#pragma") + ToTerm("private", "identifier") + ";"; // default to private exports
+
 
             //Globals
             globals.Rule = ToTerm("#define") + Identifier + equalOperator + new NonTerminal("expr", (NumberLiteral | vector | iString | StringLiteral | StringLiteralMultiline | booleanExpression | newArray)) + ";";
@@ -518,6 +524,8 @@ namespace TreyarchCompiler
             comparitorType = new NonTerminal("comparitorType");
             castType = new NonTerminal("castType");
             pragmaLazyStrings = new NonTerminal("pragmaLazyStrings");
+            pragmaPrivate = new NonTerminal("pragmaPrivate");
+            pragmaStub = new NonTerminal("pragmaStub");
             Root = new NonTerminal("program") { Rule = directives };
         }
     }

@@ -31,6 +31,7 @@ namespace TreyarchCompiler.Games
         private const string DEFINED_CHECK_TEMP = ".?";
         private const string UNDEFINED_COALESCE_TEMP = "??";
         private uint ScriptNamespace = 0xDEADBEEF;
+        private string StubbedScript = null;
 
         protected virtual dynamic NewScript => new T7ScriptObject(true);
         private dynamic Script;
@@ -119,6 +120,14 @@ namespace TreyarchCompiler.Games
                 data.HashMap = Script.GetHashMap();
                 data.RequiresGSI = (Game == Enums.Games.T7) ? T7().UsingGSI : false;
                 data.OpcodeEmissions = T7().Header.OpcodeEmissions;
+                
+                if(StubbedScript != null)
+                {
+                    data.StubbedScript = StubbedScript;
+                    T7().Header.IsStub = true;
+                    data.StubScriptData = Script.Serialize();
+                }
+
             } catch (Exception ex) { data.Error = ex.ToString(); }
             var finalticks = DateTime.Now.Ticks;
 
@@ -166,6 +175,19 @@ namespace TreyarchCompiler.Games
                     {
                         case "pragmastripped":
                             T7().Header.Stripped = true;
+                            break;
+                        case "pragmaprivate":
+                            T7().Header.AutoPrivate = true;
+                            break;
+                        case "pragmastub":
+                            {
+                                if(StubbedScript != null)
+                                {
+                                    throw new InvalidOperationException("Cannot declare two stub paths in the compilation batch.");
+                                }
+
+                                StubbedScript = directive.ChildNodes[0].ChildNodes[3].Token.ValueString.ToLower() + directive.ChildNodes[0].ChildNodes[4].Token.ValueString;
+                            }
                             break;
                         case "includes":
                             foreach (var node in directive.ChildNodes[0].ChildNodes)
@@ -255,6 +277,11 @@ namespace TreyarchCompiler.Games
             {
                 _currentDeclaration = item.Key;
                 EmitFunction(item.Value, item.Key);
+            }
+
+            if(StubbedScript != null)
+            {
+                T7().Exports.CreateStubEntrypoint(StubbedScript, ScriptNamespace);
             }
         }
 
@@ -941,14 +968,14 @@ namespace TreyarchCompiler.Games
             if (Game != Enums.Games.T6 && NS_String != null)
                 t7_ns = Script.ScriptHash(NS_String);
 
-            bool isCustomBuiltin = Script.ScriptHash("compiler") == t7_ns;
+            bool isCustomBuiltin = Script.BuiltinNamespace == t7_ns;
             int paramCount = parameters.Count;
 
             if (isCustomBuiltin)
             {
                 (CurrentFunction as T7ScriptExport).AddGetNumber((int)fhash);
                 t7_ns = ScriptNamespace;
-                fhash = Script.ScriptHash("isprofilebuild");
+                fhash = Script.BuiltinExport;
                 paramCount++;
             }
 

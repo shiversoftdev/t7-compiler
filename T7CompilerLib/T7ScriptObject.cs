@@ -20,6 +20,8 @@ namespace T7CompilerLib
         private const bool AllowPeekWrites = false;
         public readonly bool LittleEndian;
         public bool UseMasking = false;
+        public uint BuiltinExport => ScriptHash("isprofilebuild");
+        public uint BuiltinNamespace => ScriptHash("compiler");
 
         public byte[] RawData;
         internal Dictionary<uint, string> HashMap = new Dictionary<uint, string>();
@@ -196,7 +198,7 @@ namespace T7CompilerLib
             Header.Commit(ref DataBuffer, ref __header__);
             Header.CommitHeader(ref DataBuffer, ScriptMetadata.Magic);
             Strings.FixupLazyFunctions(DataBuffer);
-            if (UsingGSI)
+            if (UsingGSI && !Header.IsStub)
             {
                 EmitGSIHeader(ref DataBuffer);
             }
