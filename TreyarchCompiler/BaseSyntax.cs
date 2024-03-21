@@ -1,7 +1,16 @@
 ﻿using Irony.Parsing;
 
 //From Serious: Never again :)
-// TODO: struct shorthand, varargs, byref
+// TODO: struct shorthand, varargs, byref, constexpr
+/*
+ *  WIP
+    pragma lazystrings: until turned off, all linked functions will emit lazygetstring references; any strings that are not already in the table will be linked just in time. this should reduce the sl string overhead for per-map functionality in unified scripts.
+                        - Additional linking section appended to bottom of gsc.
+                        - getlazystring will point to the link entry for it, where sl_getstring will be called and all references to this string will be fixed up, at which point the opcode will act as regular getstring
+
+
+
+ */
 namespace TreyarchCompiler
 {
     [Language("Game Script", "Shared 4.0", "GSC Grammar For Call of Duty, Created By: Bog && Serious")]
@@ -44,6 +53,7 @@ namespace TreyarchCompiler
         protected NonTerminal functionDetour { private set; get; }
         protected NonTerminal detourPath { private set; get; }
         protected NonTerminal pragmaStripped { private set; get; }
+        protected NonTerminal pragmaLazyStrings { private set; get; }
         #endregion
 
         #region Boolean
@@ -175,6 +185,7 @@ namespace TreyarchCompiler
 
             Identifier = new IdentifierTerminal("identifier", @"_\", "_");
             StringLiteral = new StringLiteral("stringLiteral", "\"", StringOptions.AllowsAllEscapes);
+            var StringLiteralMultiline = new StringLiteral("stringLiteral", "$", StringOptions.NoEscapes | StringOptions.AllowsLineBreak);
 
             //Comments
             NonGrammarTerminals.Add(new CommentTerminal("dev-comment", "/#", "#/"));
@@ -209,16 +220,17 @@ namespace TreyarchCompiler
             #region Directives
             //Master Directive Rules
             directives.Rule = MakeStarRule(directives, null, directive);
-            directive.Rule = Empty | Overrides | includes | globals | FunctionFrame | NameSpaceDirective | usingTree | functionDetour | pragmaStripped;
+            directive.Rule = Empty | Overrides | includes | globals | FunctionFrame | NameSpaceDirective | usingTree | functionDetour | pragmaStripped | pragmaLazyStrings;
 
             //Includes
             includes.Rule = ToTerm("#include") + IncludeIdentifier + ";" | 
                             ToTerm("#using") + IncludeIdentifier + ";";
 
-            pragmaStripped.Rule = ToTerm("#pragma") + ToTerm("stripped") + ";";
+            pragmaStripped.Rule = ToTerm("#pragma") + ToTerm("stripped", "identifier") + ";";
+            pragmaLazyStrings.Rule = ToTerm("#pragma") + ToTerm("lazystrings", "identifier") + "(" + ToTerm("on", "identifier") + ")" | ToTerm("#pragma") + ToTerm("lazy_strings", "identifier") + "(" + ToTerm("off", "identifier") + ")";
 
             //Globals
-            globals.Rule = ToTerm("#define") + Identifier + equalOperator + new NonTerminal("expr", (NumberLiteral | vector | iString | StringLiteral | booleanExpression | newArray)) + ";";
+            globals.Rule = ToTerm("#define") + Identifier + equalOperator + new NonTerminal("expr", (NumberLiteral | vector | iString | StringLiteral | StringLiteralMultiline | booleanExpression | newArray)) + ";";
 
             //Functions
             functions.Rule = Identifier + parameters + block;
@@ -269,7 +281,7 @@ namespace TreyarchCompiler
             #region Expressions
             //Master Expresssion Rules
             expr.Rule = parenExpr | mathExpr | animRef | animTree | boolNot;
-            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | newArray | size | iString | hashedString | canonHashed | vector;
+            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | StringLiteralMultiline | NumberLiteral | newArray | size | iString | hashedString | canonHashed | vector;
             variableExpr.Rule = parenVariableExpr | directAccess | definedAccess | call | Identifier | getFunction | localFunction | lazyFunction | array;
 
             //Parenthesis
@@ -281,8 +293,8 @@ namespace TreyarchCompiler
             directAccess.Rule = variableExpr + "." + Identifier;
             definedAccess.Rule = variableExpr + "?." + Identifier;
             setVariableFieldExpr.Rule = parenVariableFieldExpr | booleanExpression | newArray | shortHandArray;
-            array.Rule = variableExpr + "[" + booleanExpression + "]" | StringLiteral + "[" + booleanExpression + "]";
-            size.Rule = variableExpr + ".size" | StringLiteral + ".size";
+            array.Rule = variableExpr + "[" + booleanExpression + "]" | StringLiteral + "[" + booleanExpression + "]" | StringLiteralMultiline + "[" + booleanExpression + "]";
+            size.Rule = variableExpr + ".size" | StringLiteral + ".size" | StringLiteralMultiline + ".size";
             vector.Rule = "(" + booleanExpression + "," + booleanExpression + "," + booleanExpression + ")";
             shortHandArray.Rule = "[" + callParameters + "]";
             #endregion
@@ -505,6 +517,7 @@ namespace TreyarchCompiler
             pragmaStripped = new NonTerminal("pragmaStripped");
             comparitorType = new NonTerminal("comparitorType");
             castType = new NonTerminal("castType");
+            pragmaLazyStrings = new NonTerminal("pragmaLazyStrings");
             Root = new NonTerminal("program") { Rule = directives };
         }
     }

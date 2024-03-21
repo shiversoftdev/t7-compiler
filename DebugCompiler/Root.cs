@@ -1021,7 +1021,7 @@ namespace DebugCompiler
                 string preamble = Encoding.ASCII.GetString(buffer.Take(4).ToArray());
                 if (preamble != "GSIC")
                 {
-                    return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops III.");
+                    return Error("Script is not a valid compiled script. Please use a script compiled for Black Ops IIII.");
                 }
                 using (MemoryStream ms = new MemoryStream(buffer))
                 using (BinaryReader reader = new BinaryReader(ms))

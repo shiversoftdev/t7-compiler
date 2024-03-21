@@ -270,7 +270,10 @@ namespace TreyarchCompiler.Games
             foreach (var paramNode in Parameters)
                 AddLocal(CurrentFunction, paramNode.FindTokenAndGetText().ToLower());
 
-            IEnumerable<string> locals = CollectLocalVariables(CurrentFunction, functionNode.ChildNodes[functionNode.ChildNodes.FindIndex(e => e.Term.Name == "block")], false);
+            var block = functionNode.ChildNodes[functionNode.ChildNodes.FindIndex(e => e.Term.Name == "block")];
+            FoldConstExprs(block);
+
+            IEnumerable<string> locals = CollectLocalVariables(CurrentFunction, block, false);
 
             foreach (var variable in locals)
                 AddLocal(CurrentFunction, variable.ToLower());
@@ -299,7 +302,10 @@ namespace TreyarchCompiler.Games
                 AddLocal(CurrentFunction, paramNode.FindTokenAndGetText().ToLower());
             }
 
-            IEnumerable<string> locals = CollectLocalVariables(CurrentFunction, functionNode.ChildNodes[functionNode.ChildNodes.FindIndex(e => e.Term.Name == "block")], false);
+            var block = functionNode.ChildNodes[functionNode.ChildNodes.FindIndex(e => e.Term.Name == "block")];
+            FoldConstExprs(block);
+
+            IEnumerable<string> locals = CollectLocalVariables(CurrentFunction, block, false);
 
             foreach (var variable in locals)
             {
@@ -1643,6 +1649,30 @@ namespace TreyarchCompiler.Games
             }
 
             return data;
+        }
+
+        private void FoldConstExprs(ParseTreeNode node)
+        {
+            // TODO: fold const bool expressions and automatically destroy any if/while statements we see with const expr
+            //  if(true) { ... } => { ... }
+            //  if(false) { ... } => { }
+            //  if(false) { ...1 } else { ...2 } => { ...2 }
+            //  while(true) { ... } => for(;;) { ... }
+            //  while(false) { ... } => { }
+            //  false && b => false
+            //  true || b => true
+            //  true ? a : b => a
+            //  false ? a : b => b
+            //  !const => const
+
+            // TODO: automatically replace macro refs with their respective value
+            // TODO: const math expressions
+            // const op const => const
+
+            // TODO: identify guaranteed branching
+            //  { ...1 branch; ...2 } => { ...1 branch; } where branch => continue, return, break
+
+            // so general idea is: if a tree has non const data in it, we cant simplify (isnt always true, see short circuit). otherwise, simplify bottom to top
         }
 
         private struct ScriptFunctionMetaData

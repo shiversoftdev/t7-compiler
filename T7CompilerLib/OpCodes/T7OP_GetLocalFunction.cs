@@ -42,7 +42,7 @@ namespace T7CompilerLib.OpCodes
             uint JumpTo = After.CommitAddress + After.GetSize();
             uint JumpFrom = CommitAddress + GetSize();
 
-            ((short)(JumpTo - JumpFrom)).GetBytes(Endianess).CopyTo(data, GetCommitDataAddress());
+            ((int)(JumpTo - JumpFrom)).GetBytes(Endianess).CopyTo(data, GetCommitDataAddress());
         }
 
         public override uint GetCommitDataAddress()

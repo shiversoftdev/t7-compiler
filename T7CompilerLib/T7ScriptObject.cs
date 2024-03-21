@@ -413,6 +413,7 @@ namespace T7CompilerLib
             NewHeader.AddRange(BitConverter.GetBytes((int)0)); // num fields added
 
             int numFields = 0;
+            
             // Emit Detours
             if(Detours.Count > 0)
             {
