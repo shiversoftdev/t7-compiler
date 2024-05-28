@@ -111,7 +111,7 @@ namespace DebugCompiler
 
             if (args.Length > 2 && options.Contains("--inject"))
             {
-                return root.cmd_Inject(args, options);
+                return root.cmd_Inject(arguments, options);
             }
 
             root.AddCommand(ConsoleKey.Q, "Quit Program", root.cmd_Exit);
