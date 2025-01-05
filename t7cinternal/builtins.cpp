@@ -63,6 +63,9 @@ void GSCBuiltins::Init()
 	builtinFunction->max_args = 255;
 	builtinFunction->actionFunc = GSCBuiltins::Exec;
 
+	builtinFunction = (BuiltinFunctionDef*)OFF_BID_Scr_CastInt;
+	builtinFunction->actionFunc = GSCBuiltins::Scr_CastInt_Wrapper;
+
 	ScrVm_GetString = (tScrVm_GetString)OFF_ScrVm_GetString;
 	ScrVm_GetInt = (tScrVm_GetInt)OFF_ScrVm_GetInt;
 	ScrVar_AllocVariableInternal = (tScrVar_AllocVariableInternal)OFF_ScrVar_AllocVariableInternal;
@@ -72,6 +75,11 @@ void GSCBuiltins::Init()
 void GSCBuiltins::AddCustomFunction(const char* name, void* funcPtr)
 {
 	CustomFunctions[fnv1a(name)] = funcPtr;
+}
+
+EXPORT void AddCustomFunction(const char* name, void* funcPtr)
+{
+	GSCBuiltins::AddCustomFunction(name, funcPtr);
 }
 
 void GSCBuiltins::Exec(int scriptInst)
@@ -84,6 +92,61 @@ void GSCBuiltins::Exec(int scriptInst)
 		return;
 	}
 	reinterpret_cast<void(__fastcall*)(int)>(CustomFunctions[func])(scriptInst);
+}
+
+void Scr_Error(uint32_t inst, const char* error, uint8_t force_terminal)
+{
+	if (IS_WINSTORE)
+	{
+		((void(__fastcall*)(uint32_t, const char*))REBASE(NULL, 0x1392DF0))(inst, error); // Scr_SetErrorMessage
+		*((uint8_t*)REBASE(NULL, 0x3F66B50) + 0x8A40llu * inst + 43) = force_terminal;
+		((void(__fastcall*)(uint32_t))REBASE(NULL, 0x138E030))(inst); // Scr_ErrorInternal (__noreturn btw)
+		return;
+	}
+	((void(__fastcall*)(uint32_t, const char*, uint32_t))REBASE(0x12EA430, NULL))(inst, error, force_terminal);
+}
+
+uint32_t Scr_GetType(uint32_t inst, uint32_t index)
+{
+	static char err_buff[256]{ 0 };
+
+	signed int v2; // ebx
+	uint64_t v3; // rax
+	const char* v5; // rax
+
+	v3 = 0x8A40llu * inst;
+	if (index < *(uint32_t*)(REBASE(0x51A3840, 0x3F66B50) + v3 + 56))
+		return *(uint32_t*)(*(uint64_t*)(REBASE(0x51A3840, 0x3F66B50) + v3 + 32) - 16llu * index + 8);
+
+	sprintf_s(err_buff, "parameter %d does not exist", index + 1);
+	Scr_Error(inst, err_buff, false);
+	return 0;
+}
+
+void Scr_AddInt(int scriptInst, uint32_t val)
+{
+	if (IS_WINSTORE)
+	{
+		// note: this is SO WEIRD!!! they inlined Scr_AddInt but NOT IncInParam, whereas steam doesnt inline Scr_AddInt but DOES inline IncInParam... wtf??
+		((void(__fastcall*)(uint32_t))REBASE(NULL, 0x1390370))(scriptInst); // IncInParam
+		*((uint32_t*)(*(uint64_t*)REBASE(NULL, 0x3F66B70)) + 2) = 7;
+		*(uint32_t*)(*(uint64_t*)REBASE(NULL, 0x3F66B70)) = val;
+		return;
+	}
+	((void(__fastcall*)(int, __int32))REBASE(0x12E9870, NULL))(scriptInst, val); // Scr_AddInt
+}
+
+void GSCBuiltins::Scr_CastInt_Wrapper(int scriptInst)
+{
+	auto type = Scr_GetType(scriptInst, 0);
+
+	if (type == 5) // hash
+	{
+		Scr_AddInt(scriptInst, (__int32)ScrVm_GetInt(scriptInst, 0));
+		return;
+	}
+
+	((void(__fastcall*)(int))OFF_Scr_CastInt)(scriptInst); // scr_castint
 }
 
 // START OF BUILTIN DEFINITIONS
@@ -275,7 +338,6 @@ void GSCBuiltins::GScr_erasefunc(int scriptInst)
 // initialize all new variables
 // change final entry in list to have 0 for index (+0x18) and type (0x8)??
 
-#define OFF_ScrVarGlob REBASE(0x51A3500)
 #define MEM_SCRVAR_COUNT 130000
 #define MEM_SCRVAR_CSC_COUNT 65000
 #define MEM_SCRVAR_SPACE(inst) (sizeof(ScrVar_t) * (inst ? MEM_SCRVAR_CSC_COUNT : MEM_SCRVAR_COUNT))
@@ -399,12 +461,16 @@ void GSCBuiltins::GScr_enableonlinematch(int scriptInst)
 
 void GSCBuiltins::GScr_catch_exit(int scriptInst)
 {
+	if (IS_WINSTORE)
+	{
+		return; // this isnt supported because crt stuff got messed with
+	}
 	*(__int16*)GSCR_FASTEXIT = 0x6;
 }
 
 void GSCBuiltins::GScr_abort(int scriptInst)
 {
-	((void(__fastcall*)())REBASE(0))();
+	((void(__fastcall*)())REBASE(0, 0))();
 }
 
 void GSCBuiltins::nlog(const char* str, ...)

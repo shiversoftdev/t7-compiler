@@ -7,6 +7,21 @@ namespace T7CompilerLib.OpCodes
 {
     public class T7OpCode
     {
+        private Dictionary<string, object> Metadata = new Dictionary<string, object>();
+
+        public object this[string index]
+        {
+            get
+            {
+                return Metadata.ContainsKey(index) ? Metadata[index] : null;
+            }
+            set
+            {
+                Metadata[index] = value;
+            }
+        }
+
+
         public uint T7OP_SIZE
         { 
             get

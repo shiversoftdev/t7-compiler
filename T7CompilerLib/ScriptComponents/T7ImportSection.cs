@@ -218,34 +218,34 @@ namespace T7CompilerLib.ScriptComponents
 
         public HashSet<T7OP_AbstractCall> References = new HashSet<T7OP_AbstractCall>();
 
-        public static readonly HashSet<string> DevFunctions = new HashSet<string>()
-        {
-            "print",
-            "print3d",
-            "line",
-            "debugstar",
-            "sphere",
-            "box",
-            "circle",
-            "assert",
-            "assertmsg",
-            "play",
-            "printtoprightln",
-            "record3dtext",
-            "sphericalcone",
-            "errormsg",
-            "recordline",
-            "adddebugcommand",
-            "debug",
-            "execdevgui",
-            "println",
-            "fprintln",
-            "createprintchannel",
-            "getdebugeye",
-            "setprintchannel",
-            "logprint",
-            "recordsphere",
-        };
+        //public static readonly HashSet<string> DevFunctions = new HashSet<string>()
+        //{
+        //    "print",
+        //    "print3d",
+        //    "line",
+        //    "debugstar",
+        //    "sphere",
+        //    "box",
+        //    "circle",
+        //    "assert",
+        //    "assertmsg",
+        //    "play",
+        //    "printtoprightln",
+        //    "record3dtext",
+        //    "sphericalcone",
+        //    "errormsg",
+        //    "recordline",
+        //    "adddebugcommand",
+        //    "debug",
+        //    "execdevgui",
+        //    "println",
+        //    "fprintln",
+        //    "createprintchannel",
+        //    "getdebugeye",
+        //    "setprintchannel",
+        //    "logprint",
+        //    "recordsphere",
+        //};
 
         public ScriptOpCode ToOpCode()
         {

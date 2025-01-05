@@ -5,14 +5,16 @@
 
 void Opcodes::Init()
 {
+	// note: on windows store these are RDATA!!
+	
 	// Change Opcode Handler 0x16 to VM_OP_GetLazyFunction
-	*(INT64*)(0x16 * 8 + OFF_ScrVm_Opcodes) = (INT64)VM_OP_GetLazyFunction;
+	chgmem<uint64_t>(0x16 * 8 + OFF_ScrVm_Opcodes, (uint64_t)VM_OP_GetLazyFunction);
 
 	// Change Opcode Handler 0x17 to VM_OP_GetLocalFunction
-	*(INT64*)(0x17 * 8 + OFF_ScrVm_Opcodes) = (INT64)VM_OP_GetLocalFunction;
+	chgmem<uint64_t>(0x17 * 8 + OFF_ScrVm_Opcodes, (uint64_t)VM_OP_GetLocalFunction);
 
 	// Change Opcode Handler 0x1A to VM_OP_NOP
-	*(INT64*)(0x1A * 8 + OFF_ScrVm_Opcodes) = (INT64)VM_OP_NOP;
+	chgmem<uint64_t>(0x1A * 8 + OFF_ScrVm_Opcodes, (uint64_t)VM_OP_NOP);
 }
 
 void Opcodes::VM_OP_GetLazyFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate)

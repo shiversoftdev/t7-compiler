@@ -170,6 +170,7 @@
     <ClCompile Include="builtins.cpp" />
     <ClCompile Include="detours.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="framework.cpp" />
     <ClCompile Include="Opcodes.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

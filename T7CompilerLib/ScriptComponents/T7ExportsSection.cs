@@ -632,6 +632,7 @@ namespace T7CompilerLib.ScriptComponents
                 case ScriptOpCode.Wait:
                 case ScriptOpCode.GetUndefined:
                 case ScriptOpCode.SuperEqual:
+                case ScriptOpCode.Bit_Not:
                     return __addop_internal(new T7OpCode(OpCode, Endianess));
 
                 default:
@@ -687,6 +688,22 @@ namespace T7CompilerLib.ScriptComponents
         public T7OpCode AddGetNumber(object value)
         {
             return __addop_internal(new T7OP_GetNumericValue(value, Endianess));
+        }
+
+        private Dictionary<string, T7OP_Marker> Markers = new Dictionary<string, T7OP_Marker>();
+        /// <summary>
+        /// Add an empty marker used for metadata. Does not create any serialized data.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public T7OpCode AddMarker(string identifier)
+        {
+            if(Markers.ContainsKey(identifier))
+            {
+                throw new InvalidOperationException($"Duplicate label declaration: '{identifier}' in function '{FriendlyName}'");
+            }
+
+            return Markers[identifier] = (T7OP_Marker)__addop_internal(new T7OP_Marker(identifier, Endianess));
         }
 
         /// <summary>
@@ -896,6 +913,28 @@ namespace T7CompilerLib.ScriptComponents
             CommitJumps += jmp.CommitJump; //bind the event
 
             return (T7OP_Jump) __addop_internal(jmp);
+        }
+
+        /// <summary>
+        /// Add a jump to this function.
+        /// </summary>
+        /// <param name="OpType"></param>
+        /// <returns></returns>
+        public T7OP_Jump AddLabelJump(string identifier)
+        {
+            T7OP_Jump jmp = new T7OP_Jump(ScriptOpCode.Jump, Endianess);
+
+            CommitJumps += (ref byte[] data) =>
+            {
+                if(!Markers.ContainsKey(identifier))
+                {
+                    throw new InvalidOperationException($"Function '{FriendlyName}' tried to goto label '{identifier}', but this label does not exist.");
+                }
+                jmp.After = Markers[identifier];
+                jmp.CommitJump(ref data);
+            };
+
+            return (T7OP_Jump)__addop_internal(jmp);
         }
 
         /// <summary>

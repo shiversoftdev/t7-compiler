@@ -14,6 +14,8 @@ namespace T7CompilerLib.OpCodes
         /// </summary>
         public T7OpCode After;
 
+        public string TargetLabel = null;
+
         /// <summary>
         /// Should this jump use the loop head as a ref, or the loop end as a ref.
         /// </summary>

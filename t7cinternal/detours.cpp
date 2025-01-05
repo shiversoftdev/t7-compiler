@@ -3,6 +3,9 @@
 #include "offsets.h"
 #include "builtins.h"
 
+//#define DETOUR_LOGGING 1
+//#define ALOG(fmt, ...) printf(fmt "\n", __VA_ARGS__)
+
 // Note: Some auto-exec scripts will not get detoured due to the way linking works in the game
 
 struct ReadScriptDetour
@@ -127,23 +130,78 @@ EXPORT bool RegisterDetours(void* DetourData, int NumDetours, INT64 scriptOffset
 	return true;
 }
 
+INT64 Scr_GetMethod_(INT32 canonID, INT32* type, INT32* min_args, INT32* max_args)
+{
+	return ((INT64(__fastcall*)(INT32, INT32, INT32*, INT32*, INT32*))OFF_GetMethod)(0, canonID, type, min_args, max_args);
+}
+
+INT64 Sentient_GetFunction(INT32 a1, INT32* a2, INT32* a3)
+{
+	__int64 v3; // rax
+	__int64 v6; // rax
+
+	v3 = 0ll;
+	for (INT32* i = (INT32*)REBASE(0x333E320, 0x3131F50); a1 != *i; i += 8)
+	{
+		v3 = (v3 + 1);
+		if (v3 >= 8)
+			return 0ll;
+	}
+	v6 = 8 * v3;
+	*a2 = ((INT32*)REBASE(0x333E320, 0x3131F50))[v6 + 1];
+	*a3 = ((INT32*)REBASE(0x333E320, 0x3131F50))[v6 + 2];
+	return *(INT64*)(&((INT32*)REBASE(0x333E320, 0x3131F50))[v6 + 4]);
+}
+
+INT64 Scr_GetFunction_(INT32 canonID, INT32* type, INT32* min_args, INT32* max_args)
+{
+	INT64 result; // rax
+	uint32_t count = 0;
+	*type = 0;
+	result = Sentient_GetFunction(canonID, min_args, max_args);
+	if (!result)
+	{
+		for (INT32* i = ((INT32*)REBASE(0x3347C00, 0x313A3A0)); canonID != *i; i += 8)
+		{
+			if (++count >= 0x150)
+				return ((INT64(__fastcall*)(INT32, INT32*, INT32*, INT32*))REBASE(0x1A79EB0, 0x1B5B1C0))(canonID, type, min_args, max_args); // Scr_GetCommonFunction
+		}
+		auto index = 8ll * count;
+		*type = ((INT32*)REBASE(0x3347C00, 0x313A3A0))[index + 6];
+		*min_args = ((INT32*)REBASE(0x3347C00, 0x313A3A0))[index + 1];
+		*max_args = ((INT32*)REBASE(0x3347C00, 0x313A3A0))[index + 2];
+		result = *(INT64*)(&((INT32*)REBASE(0x3347C00, 0x313A3A0))[index + 4]);
+	}
+	return result;
+}
+
 void ScriptDetours::InstallHooks()
 {
 	// initialize methods
-	Scr_GetFunction = (tScr_GetFunction)OFF_Scr_GetFunction;
-	Scr_GetMethod = (tScr_GetMethod)OFF_Scr_GetMethod;
+
+	if (IS_WINSTORE)
+	{
+		Scr_GetMethod = Scr_GetMethod_;
+		Scr_GetFunction = Scr_GetFunction_;
+	}
+	else
+	{
+		Scr_GetMethod = (tScr_GetMethod)OFF_Scr_GetMethod;
+		Scr_GetFunction = (tScr_GetFunction)OFF_Scr_GetFunction;
+	}
+	
 	DB_FindXAssetHeader = (tDB_FindXAssetHeader)OFF_DB_FindXAssetHeader;
 	Scr_GscObjLink = (tScr_GscObjLink)OFF_Scr_GscObjLink;
 
 	// opcodes to hook:
-	VTableReplace((0x12D0890), VM_OP_GetFunction, &VM_OP_GetFunction_Old);
-	VTableReplace((0x12D0A30), VM_OP_GetAPIFunction, &VM_OP_GetAPIFunction_Old);
-	VTableReplace((0x12CEE80), VM_OP_ScriptFunctionCall, &VM_OP_ScriptFunctionCall_Old);
-	VTableReplace((0x12CF1D0), VM_OP_ScriptMethodCall, &VM_OP_ScriptMethodCall_Old);
-	VTableReplace((0x12CFB10), VM_OP_ScriptThreadCall, &VM_OP_ScriptThreadCall_Old);
-	VTableReplace((0x12CF570), VM_OP_ScriptMethodThreadCall, &VM_OP_ScriptMethodThreadCall_Old);
-	VTableReplace((0x12CE460), VM_OP_CallBuiltin, &VM_OP_CallBuiltin_Old);
-	VTableReplace((0x12CE3A0), VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
+	VTableReplace(OFF_VM_OP_GetAPIFunction, VM_OP_GetAPIFunction, &VM_OP_GetAPIFunction_Old);
+	VTableReplace(OFF_VM_OP_GetFunction, VM_OP_GetFunction, &VM_OP_GetFunction_Old);
+	VTableReplace(OFF_VM_OP_ScriptFunctionCall, VM_OP_ScriptFunctionCall, &VM_OP_ScriptFunctionCall_Old);
+	VTableReplace(OFF_VM_OP_ScriptMethodCall, VM_OP_ScriptMethodCall, &VM_OP_ScriptMethodCall_Old);
+	VTableReplace(OFF_VM_OP_ScriptThreadCall, VM_OP_ScriptThreadCall, &VM_OP_ScriptThreadCall_Old);
+	VTableReplace(OFF_VM_OP_ScriptMethodThreadCall, VM_OP_ScriptMethodThreadCall, &VM_OP_ScriptMethodThreadCall_Old);
+	VTableReplace(OFF_VM_OP_CallBuiltin, VM_OP_CallBuiltin, &VM_OP_CallBuiltin_Old);
+	VTableReplace(OFF_VM_OP_CallBuiltinMethod, VM_OP_CallBuiltinMethod, &VM_OP_CallBuiltinMethod_Old);
 }
 
 INT64 ScriptDetours::FindScriptParsetree(char* name)
@@ -223,16 +281,15 @@ void ScriptDetours::LinkDetours()
 	DetoursLinked = true;
 }
 
-void ScriptDetours::VTableReplace(INT32 sub_offset, tVM_Opcode ReplaceFunc, tVM_Opcode* OutOld)
+void ScriptDetours::VTableReplace(INT64 stub_final, tVM_Opcode ReplaceFunc, tVM_Opcode* OutOld)
 {
-	INT64 stub_final = REBASE(sub_offset);
 	INT64 handler_table = OFF_ScrVm_Opcodes;
 	*OutOld = (tVM_Opcode)stub_final;
 	for (int i = 0; i < 0x2000; i++)
 	{
 		if (*(INT64*)(handler_table + (i * 8)) == stub_final)
 		{
-			*(INT64*)(handler_table + (i * 8)) = (INT64)ReplaceFunc;
+			chgmem<uint64_t>(handler_table + (i * 8), (uint64_t)ReplaceFunc);
 		}
 	}
 
@@ -242,7 +299,7 @@ void ScriptDetours::VTableReplace(INT32 sub_offset, tVM_Opcode ReplaceFunc, tVM_
 	{
 		if (*(INT64*)(handler_table + (i * 8)) == stub_final)
 		{
-			*(INT64*)(handler_table + (i * 8)) = (INT64)ReplaceFunc;
+			chgmem<uint64_t>(handler_table + (i * 8), (uint64_t)ReplaceFunc);
 		}
 	}
 }
@@ -255,7 +312,13 @@ void ScriptDetours::VM_OP_GetFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* 
 
 void ScriptDetours::VM_OP_GetAPIFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate)
 {
-	CheckDetour(inst, fs_0);
+	if (CheckDetour(inst, fs_0))
+	{
+		// spoof opcode to GetFunction (because we are no longer calling a builtin)
+		*(INT16*)(*fs_0 - 2) = 0x7e;
+		VM_OP_GetFunction_Old(inst, fs_0, vmc, terminate);
+		return;
+	}
 	VM_OP_GetAPIFunction_Old(inst, fs_0, vmc, terminate);
 }
 

@@ -29,6 +29,7 @@ public:
 
 private:
 	static void Exec(int scriptInst);
+	static void Scr_CastInt_Wrapper(int scriptInst);
 	static void Generate();
 	static std::unordered_map<int, void*> CustomFunctions;
 

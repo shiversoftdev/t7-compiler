@@ -56,7 +56,7 @@ public:
 	static void RegisterRuntimeDetour(INT64 hFixup, INT32 replaceFunc, INT32 replaceNS, const char* replaceScriptName, char* fPosOrNull);
 
 private:
-	static void VTableReplace(INT32 sub_offset, tVM_Opcode ReplaceFunc, tVM_Opcode* OutOld);
+	static void VTableReplace(INT64 stub_final, tVM_Opcode ReplaceFunc, tVM_Opcode* OutOld);
 	static void VM_OP_GetFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate);
 	static void VM_OP_GetAPIFunction(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate);
 	static void VM_OP_ScriptFunctionCall(INT32 inst, INT64* fs_0, INT64 vmc, bool* terminate);

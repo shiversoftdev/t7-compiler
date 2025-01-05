@@ -102,6 +102,7 @@ namespace TreyarchCompiler
         protected NonTerminal shortExprOperator { private set; get; }
         protected NonTerminal incDecOperator { private set; get; }
         protected NonTerminal equalityOperator { private set; get; }
+        protected NonTerminal bitNegate { private set; get; }
         #endregion
 
         #region Functions
@@ -203,6 +204,7 @@ namespace TreyarchCompiler
             RegisterOperators(7, "<", ">", "<=", ">=");
             RegisterOperators(8, "+", "-");
             RegisterOperators(9, "*", "/", "%");
+            RegisterOperators(10, "~");
 
             #endregion
 
@@ -260,7 +262,7 @@ namespace TreyarchCompiler
             #region Expressions
             //Master Expresssion Rules
             expr.Rule = parenExpr | mathExpr | animRef | animTree | newArray | shortHandArray | shortHandStruct | boolNot;
-            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | verbatimString | size | iString | hashedString | hashedVariable | vector;
+            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | NumberLiteral | verbatimString | size | iString | hashedString | hashedVariable | vector | bitNegate;
             variableExpr.Rule = parenVariableExpr | directAccess | stackAccess | call | classCall | Identifier | getFunction | array;
 
             //Parenthesis
@@ -274,6 +276,7 @@ namespace TreyarchCompiler
             setVariableFieldExpr.Rule = parenVariableFieldExpr | booleanExpression;
             array.Rule = variableExpr + "[" + booleanExpression + "]" | StringLiteral + "[" + booleanExpression + "]";
             size.Rule = variableExpr + ".size" | StringLiteral + ".size";
+            bitNegate.Rule = ToTerm("~") + mathExpr;
             vector.Rule = "(" + booleanExpression + "," + booleanExpression + "," + booleanExpression + ")";
 
             arrayAssignment.Rule = NumberLiteral + ":" + booleanExpression | StringLiteral + ":" + booleanExpression | 
@@ -508,6 +511,7 @@ namespace TreyarchCompiler
             includeExtension = new NonTerminal("includeExtension");
             functionDetour = new NonTerminal("functionDetour");
             detourPath = new NonTerminal("detourPath");
+            bitNegate = new NonTerminal("bitNegate");
             Root = new NonTerminal("program") { Rule = directives };
         }
     }

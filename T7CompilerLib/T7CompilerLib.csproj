@@ -75,6 +75,7 @@
     <Compile Include="OpCodes\T7OP_GetFuncPtr.cs" />
     <Compile Include="OpCodes\T7OP_Call.cs" />
     <Compile Include="OpCodes\T7OP_CallPtr.cs" />
+    <Compile Include="OpCodes\T7OP_Marker.cs" />
     <Compile Include="OpCodes\T7OP_GetHash.cs" />
     <Compile Include="OpCodes\T7OP_GetLocal.cs" />
     <Compile Include="OpCodes\T7OP_GetNumericValue.cs" />

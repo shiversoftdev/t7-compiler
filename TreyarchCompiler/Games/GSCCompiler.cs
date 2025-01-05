@@ -590,6 +590,14 @@ namespace TreyarchCompiler.Games
                         CurrentFunction.AddGetNumber(node.Token.Value);
                         break;
 
+                    case "cfLabel":
+                        CurrentFunction.AddMarker(node.ChildNodes[0].Token.ValueString.ToLower());
+                        break;
+
+                    case "gotoStatement":
+                        CurrentFunction.AddLabelJump(node.ChildNodes[1].Token.ValueString.ToLower());
+                        break;
+
                     case "expression+":
                     case "expression":
                         CurrentOp.SetOperands = EmitExpression(CurrentFunction, node, Context);
@@ -614,12 +622,24 @@ namespace TreyarchCompiler.Games
                         Push(CurrentOp);
                         break;
 
+                    case "bitNegate":
+                        CurrentOp.SetOperands = EmitBitNegate(CurrentFunction, node, Context);
+
+                        Push(CurrentOp);
+                        break;
+
                     default:
                         foreach (var child in node.ChildNodes.AsEnumerable().Reverse())
                             Push(CurrentFunction, child, Context);
                         break;
                 }
             }
+        }
+
+        private IEnumerable<QOperand> EmitBitNegate(dynamic CurrentFunction, ParseTreeNode node, uint Context)
+        {
+            yield return new QOperand(CurrentFunction, node.ChildNodes[1], 0);
+            CurrentFunction.AddOp(DynOp(ScriptOpCode.Bit_Not));
         }
 
         private IEnumerable<QOperand> EmitVector(dynamic CurrentFunction, ParseTreeNode node, uint Context)
@@ -1004,11 +1024,11 @@ namespace TreyarchCompiler.Games
                     Flags |= (byte)ImportFlags.NeedsResolver;
 
                 // will work for either game
-                if (T7Import.DevFunctions.Contains(function_name) && (Game == Enums.Games.T6 || t7_ns == ScriptNamespace))
-                {
-                    // Context |= (uint)ScriptContext.IsDebug;
-                    Flags |= (byte)ImportFlags.IsDebug;
-                }
+                //if (T7Import.DevFunctions.Contains(function_name) && (Game == Enums.Games.T6 || t7_ns == ScriptNamespace))
+                //{
+                //    // Context |= (uint)ScriptContext.IsDebug;
+                //    Flags |= (byte)ImportFlags.IsDebug;
+                //}
 
                 dynamic ImportRef = null;
 

@@ -43,3 +43,19 @@ inline uint32_t fnv1a(const char* key) {
 	return hash;
 
 }
+
+template <typename T> void chgmem(__int64 addy, T copy)
+{
+	DWORD oldprotect;
+	VirtualProtect((void*)addy, sizeof(T), PAGE_EXECUTE_READWRITE, &oldprotect);
+	*(T*)addy = copy;
+	VirtualProtect((void*)addy, sizeof(T), oldprotect, &oldprotect);
+}
+
+void chgmem(__int64 addy, __int32 size, void* copy);
+
+extern const char MSELECT[];
+
+#define IS_WINSTORE (*(uint8_t*)(MSELECT + 0xC) == (uint8_t)0xd0)
+#define OFFSET_S(off) (*(uint64_t*)((uint64_t)(NtCurrentTeb()->ProcessEnvironmentBlock) + 0x10) + (uint64_t)off)
+#define REBASE(steam, msstore) ((uint64_t(__fastcall*)(uint64_t, uint64_t))(char*)MSELECT)(steam, msstore)

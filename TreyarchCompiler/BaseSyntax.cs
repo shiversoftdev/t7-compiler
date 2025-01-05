@@ -89,6 +89,7 @@ namespace TreyarchCompiler
         protected NonTerminal shortHandArray { private set; get; }
         protected NonTerminal comparitorType { private set; get; }
         protected NonTerminal castType { private set; get; }
+        protected NonTerminal bitNegate { private set; get; }
         #endregion
 
         #region Calls
@@ -155,6 +156,8 @@ namespace TreyarchCompiler
         protected NonTerminal foreachSingle { private set; get; }
         protected NonTerminal foreachDouble { private set; get; }
         protected NonTerminal jumpStatement { private set; get; }
+        protected NonTerminal cfLabel { private set; get; }
+        protected NonTerminal gotoStatement { private set; get; }
         #endregion
 
         #endregion
@@ -214,6 +217,7 @@ namespace TreyarchCompiler
             RegisterOperators(8, "+", "-");
             RegisterOperators(9, "*", "/", "%");
             RegisterOperators(10, "??");
+            RegisterOperators(11, "~");
 
             #endregion
 
@@ -287,7 +291,7 @@ namespace TreyarchCompiler
             #region Expressions
             //Master Expresssion Rules
             expr.Rule = parenExpr | mathExpr | animRef | animTree | boolNot;
-            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | StringLiteralMultiline | NumberLiteral | newArray | size | iString | hashedString | canonHashed | vector;
+            mathExpr.Rule = parenMathExpr | variableExpr | StringLiteral | StringLiteralMultiline | NumberLiteral | newArray | size | iString | hashedString | canonHashed | vector | bitNegate;
             variableExpr.Rule = parenVariableExpr | directAccess | definedAccess | call | Identifier | getFunction | localFunction | lazyFunction | array;
 
             //Parenthesis
@@ -301,6 +305,7 @@ namespace TreyarchCompiler
             setVariableFieldExpr.Rule = parenVariableFieldExpr | booleanExpression | newArray | shortHandArray;
             array.Rule = variableExpr + "[" + booleanExpression + "]" | StringLiteral + "[" + booleanExpression + "]" | StringLiteralMultiline + "[" + booleanExpression + "]";
             size.Rule = variableExpr + ".size" | StringLiteral + ".size" | StringLiteralMultiline + ".size";
+            bitNegate.Rule = ToTerm("~") + boolNotOperand;
             vector.Rule = "(" + booleanExpression + "," + booleanExpression + "," + booleanExpression + ")";
             shortHandArray.Rule = "[" + callParameters + "]";
             #endregion
@@ -368,7 +373,7 @@ namespace TreyarchCompiler
             #region Declarations
             //Declaration Master Rules
             declarations.Rule = MakePlusRule(declarations, declaration);
-            declaration.Rule = _return | simpleCall | statement | setVariableField | wait | waittillframeend | jumpStatement;
+            declaration.Rule = _return | simpleCall | statement | setVariableField | wait | waittillframeend | jumpStatement | gotoStatement | cfLabel;
 
             //Statement Master Rule
             statement.Rule = ifStatement | whileStatement | forStatement | switchStatement | foreachStatement;
@@ -377,6 +382,8 @@ namespace TreyarchCompiler
             //Declarations
             simpleCall.Rule = call + ";";
             _return.Rule = ToTerm("return") + booleanExpression + ";" | ToTerm("return") + newArray + ";" | ToTerm("return") + ";";
+            cfLabel.Rule = Identifier + ":";
+            gotoStatement.Rule = ToTerm("goto") + Identifier + ";";
 
             //Parenthesis
             parenWaitExpr.Rule = "(" + waitExpr + ")";
@@ -526,6 +533,9 @@ namespace TreyarchCompiler
             pragmaLazyStrings = new NonTerminal("pragmaLazyStrings");
             pragmaPrivate = new NonTerminal("pragmaPrivate");
             pragmaStub = new NonTerminal("pragmaStub");
+            bitNegate = new NonTerminal("bitNegate");
+            cfLabel = new NonTerminal("cfLabel");
+            gotoStatement = new NonTerminal("gotoStatement");
             Root = new NonTerminal("program") { Rule = directives };
         }
     }

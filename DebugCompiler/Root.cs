@@ -890,12 +890,14 @@ namespace DebugCompiler
             {
                 return Error("No game process found for Black Ops III.");
             }
+            bool IsWindowsStore = !(bo3["GameChat2.dll"] is null);
             bo3.OpenHandle();
             bo3.SetDefaultCallType(ExCallThreadType.XCTT_QUAPC);
             OriginalPID = bo3.BaseProcess.Id;
-            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3["blackops3.exe"][0x9407AB0]}");
-            var sptGlob = bo3.GetValue<ulong>(bo3["blackops3.exe"][0x9407AB0]);
-            var sptCount = bo3.GetValue<int>(bo3["blackops3.exe"][0x9407AB0 + 0x14]);
+            PointerEx off = IsWindowsStore ? 0xF3B1330 : 0x9407AB0;
+            Console.WriteLine($"s_assetPool:ScriptParseTree => {bo3["blackops3.exe"][off]}");
+            var sptGlob = bo3.GetValue<ulong>(bo3["blackops3.exe"][off]);
+            var sptCount = bo3.GetValue<int>(bo3["blackops3.exe"][off + 0x14]);
             var SPTEntries = bo3.GetArray<T7SPT>(sptGlob, sptCount);
             for (int i = 0; i < SPTEntries.Length; i++)
             {
@@ -964,15 +966,18 @@ namespace DebugCompiler
                         
                         if(hot != hotmode.none)
                         {
-                            // grab the asm buffer from resources, map and execute
-                            var assembly = Assembly.GetExecutingAssembly();
-                            var resourceName = "DebugCompiler.hotload.dat";
-                            byte[] hot_fn = new byte[0];
-                            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
-                            {
-                                hot_fn = new byte[stream.Length];
-                                stream.Read(hot_fn, 0, (int)stream.Length);
-                            }
+                            string exeFilePath = Assembly.GetExecutingAssembly().Location;
+                            var pe = new System.PEStructures.PEImage(File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll")));
+                            var targetExport = IsWindowsStore ? "HotloadScript_WinStore" : "HotloadScript_Steam";
+                            var targetHigh = IsWindowsStore ? "HotloadScript_WinStore_Trail" : "HotloadScript_Steam_Trail";
+
+                            var internalHndl = System.Evasion.ModuleMapper.MapModuleToMemory(Path.Combine(Path.GetDirectoryName(exeFilePath), "t7cinternal.dll")).ModuleBase;
+                            var expLo = (PointerEx)System.Evasion.ModuleMapper.GetExportAddress(internalHndl, targetExport);
+                            var expHi = (PointerEx)System.Evasion.ModuleMapper.GetExportAddress(internalHndl, targetHigh);
+
+                            byte[] hot_fn = new byte[expHi - expLo];
+                            Marshal.Copy(expLo, hot_fn, 0, expHi - expLo);
+
                             var hFnHotload = bo3.QuickAlloc(hot_fn.Length, true);
                             bo3.SetBytes(hFnHotload, hot_fn);
 
