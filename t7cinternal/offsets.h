@@ -6,7 +6,7 @@
 
 #define OFF_IsProfileBuild REBASE(0x32D7D70, 0x31154A0)
 #define OFF_ScrVm_GetInt REBASE(0x12EB7F0, 0x1391240)
-#define OFF_ScrVm_GetString REBASE(0x12EBAA0, 0x12EBAA0)
+#define OFF_ScrVm_GetString REBASE(0x12EBAA0, 0x1391970)
 #define OFF_ScrVm_Opcodes REBASE(0x32E6350, 0x2EB38B0)
 #define OFF_ScrVm_Opcodes2 REBASE(0x3306350, 0x2E838B0)
 #define OFF_Scr_GetFunction REBASE(0x1AF7820, NULL)

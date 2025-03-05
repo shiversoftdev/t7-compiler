@@ -555,6 +555,7 @@ namespace DebugCompiler
                 catch { }
             }
 
+            string outName = "compiled";
             if (File.Exists("gsc.conf"))
             {
                 foreach (string line in File.ReadAllLines("gsc.conf"))
@@ -575,6 +576,9 @@ namespace DebugCompiler
                             break;
                         case "scriptlocation":
                             scriptLocation = split[1];
+                            break;
+                        case "file":
+                            outName = split[1].ToLower().Trim();
                             break;
                         case "game":
                             if (!Enum.TryParse(split[1].ToLower().Trim().Replace("\\", "/"), true, out game))
@@ -705,10 +709,10 @@ namespace DebugCompiler
 
             if(code.StubbedScript != null)
             {
-                File.WriteAllBytes($"compiled.stub.gscc", code.StubScriptData);
+                File.WriteAllBytes($"{outName}.stub.gscc", code.StubScriptData);
             }
 
-            string cpath = $"compiled.{(code.RequiresGSI ? "gsic" : "gscc")}";
+            string cpath = $"{outName}.{(code.RequiresGSI ? "gsic" : "gscc")}";
             File.WriteAllBytes(cpath, code.CompiledScript);
             string hpath = "hashes.txt";
             StringBuilder hashes = new StringBuilder();
@@ -725,7 +729,7 @@ namespace DebugCompiler
                 {
                     BitConverter.GetBytes(code.OpcodeEmissions[i]).CopyTo(opsRaw, i * 4);
                 }
-                File.WriteAllBytes("compiled.omap", opsRaw);
+                File.WriteAllBytes($"{outName}.omap", opsRaw);
             }
      
             Success(cpath);
